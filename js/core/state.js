@@ -1,11 +1,11 @@
 // Etat du jeu : uniquement des donnees serialisables (JSON).
-// Tuile : 1 = epi mur, 0 = recolte.
+// Tuile : 1 = epi mur, 0 = recolte. regrow[i] = secondes avant repousse de la tuile i.
 
 function freshField(def) {
   return {
     unlocked: def.unlockCost === 0,
     tiles: new Array(def.width * def.height).fill(1),
-    regrowLeft: 0,
+    regrow: new Array(def.width * def.height).fill(0),
   };
 }
 
@@ -39,8 +39,14 @@ export function migrate(saved, data) {
     const f = state.fields[def.id];
     f.unlocked = !!s.unlocked || f.unlocked;
     if (Array.isArray(s.tiles) && s.tiles.length === f.tiles.length) {
-      f.tiles = s.tiles;
-      f.regrowLeft = Number(s.regrowLeft) || 0;
+      f.tiles = s.tiles.map(t => (t === 1 ? 1 : 0));
+      if (Array.isArray(s.regrow) && s.regrow.length === f.tiles.length) {
+        f.regrow = s.regrow.map(t => Number(t) || 0);
+      } else {
+        // ancienne sauvegarde (repousse par champ) : les tuiles coupees repoussent normalement
+        const full = data.crops[def.crop].growTime;
+        f.regrow = f.tiles.map(t => (t === 1 ? 0 : full));
+      }
     }
   }
   return state;

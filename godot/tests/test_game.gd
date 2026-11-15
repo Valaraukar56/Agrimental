@@ -1,5 +1,6 @@
 extends SceneTree
-## Test de la logique portee (sans scene).
+## Test de la logique portee (sans scene). Les valeurs attendues sont calculees
+## a partir des JSON : le test reste valable quand l'equilibrage change.
 ## Lancer : Godot_console.exe --headless --path . --script res://godot/tests/test_game.gd
 
 var failures := 0
@@ -15,39 +16,75 @@ func _init() -> void:
 	var data := DataLoader.load_data()
 	check(not data.is_empty(), "donnees JSON chargees")
 	var g := Game.new(data)
+	var f1: Dictionary = g.field_def("f1")
+	var n := int(f1["width"]) * int(f1["height"])
+	var price := float(data["crops"][f1["crop"]]["sellPrice"])
+	var grow := float(data["crops"][f1["crop"]]["growTime"])
 	check(g.state["fields"]["f1"]["unlocked"], "f1 debloque au depart")
 	check(not g.state["fields"]["f2"]["unlocked"], "f2 verrouille au depart")
 
+	# Repousse par epi
+	check(g.harvest_tile("f1", 0), "recolte de la tuile 0")
+	check(not g.harvest_tile("f1", 0), "tuile 0 coupee : pas de double recolte")
+	check(is_equal_approx(float(g.state["fields"]["f1"]["regrow"][0]), grow), "minuteur de la tuile 0 = growTime (%s)" % grow)
+	g.tick(grow * 0.5)
+	check(g.harvest_tile("f1", 1), "tuile 1 recoltee a mi-chemin")
+	g.tick(grow * 0.5 + 0.01)
+	check(g.state["fields"]["f1"]["tiles"][0] == 1, "tuile 0 a repousse apres growTime")
+	check(g.state["fields"]["f1"]["tiles"][1] == 0, "tuile 1 pas encore repoussee (minuteur independant)")
+	g.tick(grow * 0.5)
+	check(g.state["fields"]["f1"]["tiles"][1] == 1, "tuile 1 a repousse a son tour")
+
+	# Prime champ propre : tout couper (avec un sac assez grand)
+	g.state["upgrades"]["sack"] = 1000
+	g.recompute()
+	g.state["sack"] = {}
 	var completed := [0]
 	g.field_completed.connect(func(_id, _b): completed[0] += 1)
-	for i in 20:
+	var money_before: float = g.state["money"]
+	for i in n:
 		g.harvest_tile("f1", i)
-	check(g.sack_count() == 20.0, "20 epis dans le sac (%s)" % g.sack_count())
+	var bonus := Formulas.completion_bonus(data, g.stats, f1)
 	check(completed[0] == 1, "signal field_completed emis")
-	check(g.state["money"] == 10.0, "prime de champ propre = 10 (%s)" % g.state["money"])
-	check(not g.harvest_tile("f1", 0), "pas de recolte pendant la repousse")
+	check(is_equal_approx(g.state["money"] - money_before, bonus), "prime de champ propre = %d" % bonus)
+	var expected_sack := n * float(g.stats["yieldPerTile"])
+	check(is_equal_approx(g.sack_count(), expected_sack), "%d epis dans le sac (%s)" % [expected_sack, g.sack_count()])
 
-	g.sell()
-	check(g.state["money"] == 30.0 and g.sack_count() == 0.0, "vente : 30 et sac vide")
-	check(g.buy_upgrade("sack"), "achat du sac (25)")
-	check(g.stats["sackCapacity"] == 60.0, "capacite 60 (%s)" % g.stats["sackCapacity"])
-	check(g.get_upgrade_cost("sack") == 31, "cout sac niv.1 = ceil(25*1.22) = 31 (%s)" % g.get_upgrade_cost("sack"))
+	var value := g.sell()
+	check(is_equal_approx(value, expected_sack * price) and g.sack_count() == 0.0, "vente = %s, sac vide" % value)
 
-	g.tick(12.1)
-	check(g.ripe_count("f1") == 20, "f1 a repousse apres 12 s")
+	# Ameliorations
+	g.state["upgrades"] = {}
+	g.recompute()
+	var sack_def := g.upgrade_def("sack")
+	g.state["money"] = float(sack_def["baseCost"])
+	check(g.buy_upgrade("sack"), "achat du sac au cout de base")
+	check(is_equal_approx(g.stats["sackCapacity"], float(data["balance"]["baseStats"]["sackCapacity"]) + float(sack_def["value"])), "capacite du sac augmentee")
+	check(g.get_upgrade_cost("sack") == int(ceil(float(sack_def["baseCost"]) * float(sack_def["costGrowth"]))), "cout niveau 1 = base x croissance")
 
-	g.state["money"] = 2000.0
+	# Ouvrier
+	g.tick(grow + 1.0)
+	var ripe_before := g.ripe_count("f1")
+	g.state["money"] = 1e9
 	check(g.buy_upgrade("farmhand"), "achat ouvrier")
-	g.tick(10.0)
-	check(g.ripe_count("f1") == 15, "ouvrier : 5 epis en 10 s (%d restants)" % g.ripe_count("f1"))
+	var rate := float(g.stats["autoHarvestRate"])
+	g.tick(4.0 / rate)
+	check(ripe_before - g.ripe_count("f1") == 4, "ouvrier : 4 epis en %s s" % (4.0 / rate))
 
 	# Aller-retour sauvegarde JSON (les nombres reviennent en float)
 	var saved: Variant = JSON.parse_string(JSON.stringify(g.serialize()))
 	var g2 := Game.new(data, saved)
-	check(g2.ripe_count("f1") == 15, "sauvegarde : tuiles conservees")
-	check(g2.upgrade_level("farmhand") == 1 and g2.upgrade_level("sack") == 1, "sauvegarde : niveaux conserves")
+	check(g2.ripe_count("f1") == g.ripe_count("f1"), "sauvegarde : tuiles conservees")
+	check(g2.upgrade_level("farmhand") == 1, "sauvegarde : niveaux conserves")
 	check(g2.state["fields"]["f1"]["tiles"].has(1), "sauvegarde : tuiles relues en int")
-	check(g2.harvest_tile("f1", g2.state["fields"]["f1"]["tiles"].find(1)), "recolte apres rechargement")
+	var cut: int = g2.state["fields"]["f1"]["tiles"].find(0)
+	check(cut >= 0 and g2.state["fields"]["f1"]["regrow"][cut] > 0.0, "sauvegarde : minuteurs conserves")
+
+	# Ancienne sauvegarde (repousse par champ, sans tableau regrow)
+	var old := {"fields": {"f1": {"unlocked": true, "tiles": g2.state["fields"]["f1"]["tiles"].duplicate(), "regrowLeft": 3}}}
+	var g3 := Game.new(data, old)
+	var c3: int = g3.state["fields"]["f1"]["tiles"].find(0)
+	check(c3 < 0 or is_equal_approx(float(g3.state["fields"]["f1"]["regrow"][c3]), grow), "migration ancienne sauvegarde")
 
 	print("\n%s" % ("TOUS LES TESTS PASSENT" if failures == 0 else "%d ECHEC(S)" % failures))
 	quit(1 if failures else 0)

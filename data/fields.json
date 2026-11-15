@@ -1,10 +1,10 @@
 [
-  { "id": "f1", "name": "Champ du Nord-Ouest", "crop": "wheat", "width": 5, "height": 4, "unlockCost": 0,     "slot": { "col": 1, "row": 1 } },
-  { "id": "f2", "name": "Champ du Nord",       "crop": "wheat", "width": 6, "height": 4, "unlockCost": 300,    "slot": { "col": 2, "row": 1 } },
-  { "id": "f3", "name": "Champ du Nord-Est",   "crop": "wheat", "width": 6, "height": 5, "unlockCost": 900,   "slot": { "col": 3, "row": 1 } },
-  { "id": "f4", "name": "Champ de l'Est",      "crop": "wheat", "width": 7, "height": 5, "unlockCost": 3000,   "slot": { "col": 3, "row": 2 } },
-  { "id": "f5", "name": "Champ du Sud-Est",    "crop": "wheat", "width": 7, "height": 6, "unlockCost": 12000,  "slot": { "col": 3, "row": 3 } },
-  { "id": "f6", "name": "Champ du Sud",        "crop": "wheat", "width": 8, "height": 6, "unlockCost": 50000,  "slot": { "col": 2, "row": 3 } },
-  { "id": "f7", "name": "Champ du Sud-Ouest",  "crop": "wheat", "width": 8, "height": 7, "unlockCost": 200000, "slot": { "col": 1, "row": 3 } },
-  { "id": "f8", "name": "Champ de l'Ouest",    "crop": "wheat", "width": 9, "height": 7, "unlockCost": 800000, "slot": { "col": 1, "row": 2 } }
+  { "id": "f1", "name": "Champ du Nord-Ouest", "crop": "wheat", "width": 15, "height": 10, "unlockCost": 0,     "slot": { "col": 1, "row": 1 } },
+  { "id": "f2", "name": "Champ du Nord",       "crop": "wheat", "width": 17, "height": 12, "unlockCost": 500,    "slot": { "col": 2, "row": 1 } },
+  { "id": "f3", "name": "Champ du Nord-Est",   "crop": "wheat", "width": 19, "height": 14, "unlockCost": 1800,   "slot": { "col": 3, "row": 1 } },
+  { "id": "f4", "name": "Champ de l'Est",      "crop": "wheat", "width": 21, "height": 16, "unlockCost": 5400,   "slot": { "col": 3, "row": 2 } },
+  { "id": "f5", "name": "Champ du Sud-Est",    "crop": "wheat", "width": 23, "height": 18, "unlockCost": 16000,  "slot": { "col": 3, "row": 3 } },
+  { "id": "f6", "name": "Champ du Sud",        "crop": "wheat", "width": 25, "height": 20, "unlockCost": 48000,  "slot": { "col": 2, "row": 3 } },
+  { "id": "f7", "name": "Champ du Sud-Ouest",  "crop": "wheat", "width": 27, "height": 22, "unlockCost": 145000, "slot": { "col": 1, "row": 3 } },
+  { "id": "f8", "name": "Champ de l'Ouest",    "crop": "wheat", "width": 30, "height": 25, "unlockCost": 440000, "slot": { "col": 1, "row": 2 } }
 ]

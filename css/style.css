@@ -1,5 +1,5 @@
 /* Style volontairement minimal : prototype. */
-:root { --tile: 22px; --bg: #f4efe1; --ink: #2b2a26; --soil: #8a6a45; --wheat: #e2b93b; --accent: #3f7d3a; }
+:root { --tile: 9px; --bg: #f4efe1; --ink: #2b2a26; --soil: #8a6a45; --wheat: #e2b93b; --accent: #3f7d3a; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 12px 16px; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
 h1 { margin: 0 0 12px; font-size: 1.4rem; }
@@ -26,11 +26,10 @@ button:disabled { opacity: .45; cursor: default; }
 
 .field.locked { opacity: .7; border-style: dashed; }
 .field-info { font-size: .8rem; margin-bottom: 4px; }
-.grid { display: grid; gap: 2px; touch-action: none; user-select: none; }
-.tile { width: var(--tile); height: var(--tile); background: var(--soil); border-radius: 3px; }
+.grid { display: grid; gap: 1px; touch-action: none; user-select: none; }
+.tile { width: var(--tile); height: var(--tile); background: var(--soil); border-radius: 1px; }
 .tile.ripe { background: var(--wheat); cursor: pointer; }
 .tile.ripe:hover { filter: brightness(1.15); }
-.field.regrowing .tile { background: #a58a62; }
 .harvest { width: 100%; }
 
 .flash { animation: flash .8s; }

@@ -1,14 +1,18 @@
 class_name GameState
 extends RefCounted
 ## Port de js/core/state.js. Etat = Dictionary serialisable en JSON.
-## Tuile : 1 = epi mur, 0 = recolte.
+## Tuile : 1 = epi mur, 0 = recolte. regrow[i] = secondes avant repousse de la tuile i.
 
 
 static func _fresh_field(def: Dictionary) -> Dictionary:
+	var n := int(def["width"]) * int(def["height"])
 	var tiles: Array = []
-	tiles.resize(int(def["width"]) * int(def["height"]))
+	tiles.resize(n)
 	tiles.fill(1)
-	return {"unlocked": int(def["unlockCost"]) == 0, "tiles": tiles, "regrowLeft": 0.0}
+	var regrow: Array = []
+	regrow.resize(n)
+	regrow.fill(0.0)
+	return {"unlocked": int(def["unlockCost"]) == 0, "tiles": tiles, "regrow": regrow}
 
 
 static func create(data: Dictionary) -> Dictionary:
@@ -59,7 +63,14 @@ static func migrate(saved: Variant, data: Dictionary) -> Dictionary:
 		f["unlocked"] = bool(s.get("unlocked", false)) or f["unlocked"]
 		var tiles: Variant = s.get("tiles")
 		if tiles is Array and tiles.size() == f["tiles"].size():
+			var regrow: Variant = s.get("regrow")
+			var has_regrow: bool = regrow is Array and regrow.size() == tiles.size()
+			var full := float(data["crops"][def["crop"]]["growTime"])
 			for i in tiles.size():
-				f["tiles"][i] = int(tiles[i])
-			f["regrowLeft"] = float(s.get("regrowLeft", 0))
+				f["tiles"][i] = 1 if int(tiles[i]) == 1 else 0
+				if has_regrow:
+					f["regrow"][i] = float(regrow[i])
+				else:
+					# ancienne sauvegarde (repousse par champ) : les tuiles coupees repoussent normalement
+					f["regrow"][i] = 0.0 if f["tiles"][i] == 1 else full
 	return state

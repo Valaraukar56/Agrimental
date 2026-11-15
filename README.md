@@ -40,12 +40,14 @@ docs/PASSERELLES.md liste de chaque interface entre couches
 ## Équilibrer
 
 Tout se règle dans `data/`, sans toucher au code.
-- Coût d'une amélioration : `baseCost × costGrowth^niveau` (`costGrowth` entre 1.07 et 1.15 dans les idle "lents", 1.18 à 1.35 ici).
+- Coût d'une amélioration : `baseCost × costGrowth^niveau`.
 - Effet : `add` (linéaire) ou `mul` (multiplicatif par niveau).
-- Prime de champ propre : `nb tuiles × blé par épi × prix × completionBonusRatio`.
-- Principe : les améliorations d'outils (sac, faucille) arrivent AVANT le premier champ. Premier achat vers 7 s, champ 2 vers 3 min 30.
-- Repères actuels (simulés, joueur actif ~4 épis/s, aller-retour au hangar ~2 s) : champ 3 vers 5 min, champ 5 vers 15 min, champ 7 vers 50 min, champ 8 (dernier) vers 1 h 50. Un achat toutes les 10 à 20 s au début, 1 min vers 30-60 min, 2 à 3 min après 1 h.
-- Les coûts de champ (300, 900, 3 000, 12 000, 50 000, 200 000, 800 000) et les `costGrowth` (1,18 à 1,35) sont réglés ensemble : si on change l'un, rejouer la simulation.
-- Repère : on vise qu'un nouvel achat prenne de 30 s à 2 min. Si le joueur attend plus, baisser `baseCost` ou `costGrowth`. S'il achète tout sans réfléchir, monter `costGrowth`.
+- Repousse par épi : chaque épi récolté repousse seul après `crops.wheat.growTime × growTimeMult` secondes (base 40 s). Débit max d'un champ = tuiles / temps de repousse.
+- Prime de champ propre : `nb tuiles × blé par épi × prix × completionBonusRatio`, quand toutes les tuiles sont récoltées en même temps (vider le champ plus vite qu'il ne repousse).
+- Échelle : champs de 15x10 à 30x25, épi de base à 1 pour 1 : c'est l'échelle des coûts qui donne la sensation "l'épi vaut peu".
+- Principe : les améliorations d'outils (sac, faucille) arrivent AVANT le premier champ. Premier achat vers 25 s, champ 2 vers 5 min.
+- Repères simulés (joueur actif ~10 épis/s en marchant, aller-retour hangar 5 à 8 s, achète toujours l'option la moins chère) : champ 2 à 5 min, champ 3 à 9 min, champ 4 à 19 min, champ 5 à 29 min, champ 6 à 43 min, champ 7 à 64 min, champ 8 (dernier) à 1 h 46. Un achat toutes les 10 à 25 s avant 30 min, 30 à 60 s vers 30-60 min, 1 à 2 min après 1 h.
+- Les coûts de champ (500, 1 800, 5 400, 16 000, 48 000, 145 000, 440 000, ratio ~3) et les `costGrowth` sont réglés ensemble : si on change l'un, rejouer la simulation.
+- Si le joueur attend plus de 2 min entre deux achats, baisser `baseCost` ou `costGrowth`. S'il achète tout sans réfléchir, monter `costGrowth`.
 
 Console du navigateur : `game.state.money += 1000` pour tester.

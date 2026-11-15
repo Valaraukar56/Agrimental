@@ -4,7 +4,7 @@ extends Node3D
 ## Les constantes ci-dessous reglent la SENSATION (distances, vitesse),
 ## pas l'economie (qui reste dans data/*.json).
 
-const SLOT_SPACING := 16.0     # distance hangar -> champs (m) : regle la longueur des allers-retours
+const FIELD_GAP := 4.0         # ecart entre le hangar et les champs (m) : regle la longueur des allers-retours
 const TILE_STEP := 1.0         # pas de la grille de ble (m)
 const PLAYER_SPEED := 6.0      # vitesse de marche (m/s)
 const HARVEST_RADIUS := 0.9    # rayon de recolte autour du joueur (m)
@@ -12,30 +12,34 @@ const HUB_HALF := 4.0          # demi-taille de la dalle du hangar (m)
 const PC_POS := Vector3(2.6, 0, -2.6)
 const PC_RANGE := 1.8          # distance pour utiliser le PC (m)
 const CAMERA_OFFSET := Vector3(0, 14, 10)
-const WORLD_HALF := 38.0       # limite de deplacement (m)
 const SAVE_INTERVAL := 10.0
+const COLOR_RIPE := Color(0.89, 0.73, 0.23)
+const COLOR_CUT := Color(0.45, 0.33, 0.2)
+const COLOR_GROW := Color(0.55, 0.65, 0.25)
 
 var game: Game
 var player: Node3D
 var camera: Camera3D
-var field_nodes := {}          # id -> { root, tiles, cache, label, w, h }
+var field_nodes := {}          # id -> { root, mm, cache, label, w, h }
+var field_origins := {}        # id -> Vector3, calcule a partir des tailles de champs
+var world_half := 40.0         # limite de deplacement (m)
+var visual_acc := 0.0
 var hud := {}
 var mats := {}
 var tile_mesh: BoxMesh
 var save_acc := 0.0
 var message_left := 0.0
 var saving_enabled := true
+var use_save := true           # false dans les tests : partie neuve, sans lire la sauvegarde
 
 
 func _ready() -> void:
 	var data := DataLoader.load_data()
 	if data.is_empty():
 		return
-	game = Game.new(data, Storage.load_save())
+	game = Game.new(data, Storage.load_save() if use_save else null)
 
 	mats = {
-		"ripe": _mat(Color(0.89, 0.73, 0.23)),
-		"cut": _mat(Color(0.45, 0.33, 0.2)),
 		"soil": _mat(Color(0.54, 0.42, 0.27)),
 		"locked": _mat(Color(0.35, 0.35, 0.35)),
 		"hub": _mat(Color(0.6, 0.6, 0.62)),
@@ -45,7 +49,11 @@ func _ready() -> void:
 	}
 	tile_mesh = BoxMesh.new()
 	tile_mesh.size = Vector3(0.85, 1.0, 0.85)
+	var tile_mat := StandardMaterial3D.new()
+	tile_mat.vertex_color_use_as_albedo = true   # couleur par instance du MultiMesh
+	tile_mesh.material = tile_mat
 
+	_compute_layout()
 	_build_environment()
 	_build_hub()
 	for def in data["fields"]:
@@ -71,7 +79,7 @@ func _process(delta: float) -> void:
 		game.sell()   # entrer dans le hangar vend automatiquement
 	hud["panel"].visible = p.distance_to(PC_POS) <= PC_RANGE
 
-	_update_fields()
+	_update_fields(delta)
 	_update_hud(delta)
 
 	save_acc += delta
@@ -95,8 +103,8 @@ func _move_player(delta: float) -> void:
 	if dir != Vector3.ZERO:
 		dir = dir.normalized()
 		player.position += dir * PLAYER_SPEED * delta
-		player.position.x = clampf(player.position.x, -WORLD_HALF, WORLD_HALF)
-		player.position.z = clampf(player.position.z, -WORLD_HALF, WORLD_HALF)
+		player.position.x = clampf(player.position.x, -world_half, world_half)
+		player.position.z = clampf(player.position.z, -world_half, world_half)
 		player.rotation.y = atan2(dir.x, dir.z)
 	var target := player.position + CAMERA_OFFSET
 	camera.position = camera.position.lerp(target, 1.0 - exp(-8.0 * delta))
@@ -108,21 +116,25 @@ func _harvest_around_player() -> void:
 	for def in game.data["fields"]:
 		var id: String = def["id"]
 		var f: Dictionary = game.state["fields"][id]
-		if not f["unlocked"] or f["regrowLeft"] > 0.0:
+		if not f["unlocked"]:
 			continue
 		var fn: Dictionary = field_nodes[id]
+		var w: int = fn["w"]
+		var h: int = fn["h"]
+		var tiles: Array = f["tiles"]
+		# Position du joueur en coordonnees de grille, puis seulement les tuiles proches
 		var local: Vector3 = p - fn["root"].position
-		if absf(local.x) > fn["w"] * TILE_STEP * 0.5 + HARVEST_RADIUS:
-			continue
-		if absf(local.z) > fn["h"] * TILE_STEP * 0.5 + HARVEST_RADIUS:
-			continue
-		for i in f["tiles"].size():
-			if f["tiles"][i] != 1:
-				continue
-			var t := _tile_local(i, fn["w"], fn["h"])
-			if Vector2(t.x - local.x, t.z - local.z).length() <= HARVEST_RADIUS:
-				if not game.harvest_tile(id, i):
-					return   # sac plein
+		var cx := local.x / TILE_STEP + (w - 1) * 0.5
+		var cz := local.z / TILE_STEP + (h - 1) * 0.5
+		var r := HARVEST_RADIUS / TILE_STEP
+		for z in range(maxi(0, ceili(cz - r)), mini(h - 1, floori(cz + r)) + 1):
+			for x in range(maxi(0, ceili(cx - r)), mini(w - 1, floori(cx + r)) + 1):
+				var i: int = z * w + x
+				if tiles[i] != 1:
+					continue
+				if Vector2(x - cx, z - cz).length() <= r:
+					if not game.harvest_tile(id, i):
+						return   # sac plein
 
 
 # ---------- Construction du monde ----------
@@ -172,7 +184,7 @@ func _build_environment() -> void:
 
 	var ground := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(WORLD_HALF * 2 + 4, WORLD_HALF * 2 + 4)
+	pm.size = Vector2(world_half * 2 + 4, world_half * 2 + 4)
 	ground.mesh = pm
 	ground.material_override = _mat(Color(0.42, 0.58, 0.3))
 	add_child(ground)
@@ -188,8 +200,22 @@ func _build_hub() -> void:
 	_label3d("HANGAR (vente)", Vector3(0, 4.2, 0), self, 72)
 
 
-func _field_origin(def: Dictionary) -> Vector3:
-	return Vector3((float(def["slot"]["col"]) - 2.0) * SLOT_SPACING, 0, (float(def["slot"]["row"]) - 2.0) * SLOT_SPACING)
+## Place les champs autour du hangar selon slot.col / slot.row (grille 3x3, hangar au centre).
+## Chaque colonne et ligne est aussi large que son plus grand champ : aucun chevauchement.
+func _compute_layout() -> void:
+	var col_w := {1: 0.0, 2: HUB_HALF * 2, 3: 0.0}
+	var row_h := {1: 0.0, 2: HUB_HALF * 2, 3: 0.0}
+	for def in game.data["fields"]:
+		var c := int(def["slot"]["col"])
+		var r := int(def["slot"]["row"])
+		col_w[c] = maxf(col_w[c], int(def["width"]) * TILE_STEP)
+		row_h[r] = maxf(row_h[r], int(def["height"]) * TILE_STEP)
+	var col_x := {1: -(col_w[2] / 2 + FIELD_GAP + col_w[1] / 2), 2: 0.0, 3: col_w[2] / 2 + FIELD_GAP + col_w[3] / 2}
+	var row_z := {1: -(row_h[2] / 2 + FIELD_GAP + row_h[1] / 2), 2: 0.0, 3: row_h[2] / 2 + FIELD_GAP + row_h[3] / 2}
+	for def in game.data["fields"]:
+		field_origins[def["id"]] = Vector3(col_x[int(def["slot"]["col"])], 0, row_z[int(def["slot"]["row"])])
+	world_half = maxf(col_w[2] / 2 + FIELD_GAP + maxf(col_w[1], col_w[3]),
+		row_h[2] / 2 + FIELD_GAP + maxf(row_h[1], row_h[3])) + 6.0
 
 
 func _tile_local(i: int, w: int, h: int) -> Vector3:
@@ -203,20 +229,23 @@ func _build_field(def: Dictionary) -> void:
 	var unlocked: bool = game.state["fields"][id]["unlocked"]
 
 	var root := Node3D.new()
-	root.position = _field_origin(def)
+	root.position = field_origins[id]
 	add_child(root)
 	_box(Vector3(w * TILE_STEP + 0.4, 0.05, h * TILE_STEP + 0.4), Vector3(0, 0.025, 0), mats["soil"] if unlocked else mats["locked"], root)
 
-	var tiles: Array = []
+	# Un seul MultiMesh par champ : des milliers d'epis en un appel de dessin
+	var mm: MultiMesh = null
 	if unlocked:
-		for i in w * h:
-			var t := MeshInstance3D.new()
-			t.mesh = tile_mesh
-			t.position = _tile_local(i, w, h)
-			root.add_child(t)
-			tiles.append(t)
+		mm = MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = tile_mesh
+		mm.instance_count = w * h
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		root.add_child(mmi)
 	var label := _label3d("", Vector3(0, 2.2, -h * 0.5 * TILE_STEP), root)
-	field_nodes[id] = {"root": root, "tiles": tiles, "cache": [], "label": label, "w": w, "h": h}
+	field_nodes[id] = {"root": root, "mm": mm, "cache": [], "label": label, "w": w, "h": h}
 
 
 func _build_player() -> void:
@@ -239,7 +268,12 @@ func _build_player() -> void:
 
 
 # ---------- Mise a jour visuelle ----------
-func _update_fields() -> void:
+func _update_fields(delta: float) -> void:
+	# Les epis en train de repousser grandissent : rafraichis 10 fois par seconde
+	visual_acc += delta
+	var refresh_growth := visual_acc >= 0.1
+	if refresh_growth:
+		visual_acc = 0.0
 	for def in game.data["fields"]:
 		var id: String = def["id"]
 		var f: Dictionary = game.state["fields"][id]
@@ -247,24 +281,31 @@ func _update_fields() -> void:
 		if not f["unlocked"]:
 			fn["label"].text = "%s\nVerrouillé : %s" % [def["name"], _fmt(float(def["unlockCost"]))]
 			continue
-		if f["regrowLeft"] > 0.0:
-			fn["label"].text = "%s\nRepousse dans %d s" % [def["name"], ceili(f["regrowLeft"])]
-		else:
-			fn["label"].text = "%s\n%d / %d épis" % [def["name"], game.ripe_count(id), f["tiles"].size()]
+		var tiles: Array = f["tiles"]
+		var regrow: Array = f["regrow"]
+		fn["label"].text = "%s\n%d / %d épis mûrs" % [def["name"], game.ripe_count(id), tiles.size()]
+		var full := maxf(0.01, Formulas.grow_time(game.data, game.stats, def["crop"]))
 		var cache: Array = fn["cache"]
-		if cache.size() != f["tiles"].size():
-			cache.resize(f["tiles"].size())
+		if cache.size() != tiles.size():
+			cache.resize(tiles.size())
 			cache.fill(-1)
-		for i in f["tiles"].size():
-			var ripe: int = f["tiles"][i]
-			if cache[i] == ripe:
-				continue
-			cache[i] = ripe
-			var t: MeshInstance3D = fn["tiles"][i]
-			var height := 0.7 if ripe == 1 else 0.08
-			t.scale.y = height
-			t.position.y = height * 0.5
-			t.material_override = mats["ripe"] if ripe == 1 else mats["cut"]
+		for i in tiles.size():
+			if tiles[i] == 1:
+				if cache[i] != 1:
+					cache[i] = 1
+					_set_tile(fn, i, true, 1.0)
+			elif refresh_growth or cache[i] != 0:
+				cache[i] = 0
+				_set_tile(fn, i, false, 1.0 - clampf(regrow[i] / full, 0.0, 1.0))
+
+
+## growth : 0 = vient d'etre coupe, 1 = presque mur
+func _set_tile(fn: Dictionary, i: int, ripe: bool, growth: float) -> void:
+	var height := 0.7 if ripe else lerpf(0.06, 0.45, growth)
+	var pos := _tile_local(i, fn["w"], fn["h"]) + Vector3(0, height * 0.5, 0)
+	var mm: MultiMesh = fn["mm"]
+	mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(1, height, 1)), pos))
+	mm.set_instance_color(i, COLOR_RIPE if ripe else COLOR_CUT.lerp(COLOR_GROW, growth))
 
 
 func _on_field_completed(id: String, bonus: float) -> void:

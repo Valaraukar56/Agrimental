@@ -58,6 +58,7 @@ export class Game {
     }
 
     f.tiles[idx] = 0;
+    f.regrow[idx] = growTime(this.data, this.stats, def.crop);
     this.state.totals.tilesHarvested++;
     this.events.emit('tileHarvested', { fieldId, idx, source, amount });
     if (f.tiles.every(t => t === 0)) this.completeField(fieldId);
@@ -70,12 +71,10 @@ export class Game {
     return idx >= 0 && this.harvestTile(fieldId, idx, source);
   }
 
+  // Prime quand toutes les tuiles sont coupees en meme temps
   completeField(fieldId) {
-    const f = this.state.fields[fieldId];
-    const def = this.fieldDef(fieldId);
-    const bonus = completionBonus(this.data, this.stats, def);
+    const bonus = completionBonus(this.data, this.stats, this.fieldDef(fieldId));
     this.addMoney(bonus);
-    f.regrowLeft = growTime(this.data, this.stats, def.crop);
     this.state.totals.fieldsCompleted++;
     this.events.emit('fieldCompleted', { fieldId, bonus });
   }
@@ -110,15 +109,18 @@ export class Game {
   tick(dt) {
     this.state.playTime += dt;
 
-    // Repousse des champs termines
+    // Repousse tuile par tuile
     for (const def of this.data.fields) {
       const f = this.state.fields[def.id];
-      if (!f.unlocked || f.regrowLeft <= 0) continue;
-      f.regrowLeft -= dt;
-      if (f.regrowLeft <= 0) {
-        f.regrowLeft = 0;
-        f.tiles.fill(1);
-        this.events.emit('fieldRegrown', { fieldId: def.id });
+      if (!f.unlocked) continue;
+      for (let i = 0; i < f.regrow.length; i++) {
+        if (f.regrow[i] <= 0) continue;
+        f.regrow[i] -= dt;
+        if (f.regrow[i] <= 0) {
+          f.regrow[i] = 0;
+          f.tiles[i] = 1;
+          this.events.emit('tileRegrown', { fieldId: def.id, idx: i });
+        }
       }
     }
 
@@ -136,7 +138,7 @@ export class Game {
   pickAutoTarget() {
     const candidates = this.data.fields.filter(d => {
       const f = this.state.fields[d.id];
-      return f.unlocked && f.regrowLeft <= 0 && f.tiles.includes(1);
+      return f.unlocked && f.tiles.includes(1);
     });
     if (!candidates.length) return null;
     const def = candidates[Math.floor(Math.random() * candidates.length)];

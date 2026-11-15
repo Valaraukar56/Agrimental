@@ -10,6 +10,7 @@ var frames := 0
 func _initialize() -> void:
 	main = load("res://godot/main.tscn").instantiate()
 	main.saving_enabled = false
+	main.use_save = false
 	root.add_child(main)
 
 

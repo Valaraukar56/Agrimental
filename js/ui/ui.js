@@ -145,10 +145,7 @@ export function createUI(root, game, { onReset }) {
       const f = s.fields[def.id], e = els.fields[def.id];
       if (!f.unlocked) { e.unlockBtn.disabled = !game.canUnlockField(def.id); continue; }
       const total = f.tiles.length, ripe = game.ripeCount(def.id);
-      e.info.textContent = f.regrowLeft > 0
-        ? `🌱 Repousse dans ${Math.ceil(f.regrowLeft)} s`
-        : `${ripe} / ${total} épis`;
-      e.card.classList.toggle('regrowing', f.regrowLeft > 0);
+      e.info.textContent = `${ripe} / ${total} épis mûrs`;
       if (gridMode) {
         for (let i = 0; i < total; i++) {
           const ripeNow = f.tiles[i] === 1;

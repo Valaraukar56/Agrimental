@@ -44,7 +44,7 @@ Godot : un autoload `Game.gd` exposant les mêmes fonctions.
 | `sell()` | vend le sac au hangar |
 | `buyUpgrade(id)` | achète un niveau |
 | `unlockField(id)` | débloque un champ |
-| `tick(dt)` | avance le temps de `dt` secondes (repousse, ouvriers) |
+| `tick(dt)` | avance le temps de `dt` secondes (repousse de chaque épi, ouvriers) |
 | `serialize()` | état prêt à sauvegarder |
 
 ## 3. Événements (logique → affichage)
@@ -54,8 +54,8 @@ Godot : un autoload `Game.gd` exposant les mêmes fonctions.
 | Événement | Données | Usage UI actuel |
 |---|---|---|
 | `tileHarvested` | `{ fieldId, idx, source, amount }` | (libre : son, particules) |
-| `fieldCompleted` | `{ fieldId, bonus }` | flash + texte « Champ propre ! » |
-| `fieldRegrown` | `{ fieldId }` | (libre) |
+| `fieldCompleted` | `{ fieldId, bonus }` (toutes les tuiles coupées en même temps) | flash + texte « Champ propre ! » |
+| `tileRegrown` | `{ fieldId, idx }` | (libre ; Godot : signal `tile_regrown`) |
 | `sackFull` | - | le sac tremble |
 | `sold` | `{ value }` | (libre) |
 | `upgradeBought` | `{ id, level }` | (libre) |
@@ -67,6 +67,8 @@ Godot : un autoload `Game.gd` exposant les mêmes fonctions.
 |---|---|---|
 | `loadSave()` / `writeSave(obj)` / `clearSave()` | sauvegarde de l'état de jeu | `FileAccess` sur `user://save.json` |
 | `loadPref()` / `savePref()` | préférences d'affichage (grille on/off) | `ConfigFile` |
+
+État d'un champ : `{ unlocked, tiles: [1 mûr | 0 coupé], regrow: [secondes avant repousse, par tuile] }`.
 
 `state.js → migrate()` rend une vieille sauvegarde compatible si les JSON changent (champ ajouté, grille redimensionnée).
 

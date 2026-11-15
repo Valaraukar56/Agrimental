@@ -5,7 +5,7 @@ extends RefCounted
 
 signal tile_harvested(field_id: String, idx: int, source: String, amount: float)
 signal field_completed(field_id: String, bonus: float)
-signal field_regrown(field_id: String)
+signal tile_regrown(field_id: String, idx: int)
 signal sack_full
 signal sold(value: float)
 signal upgrade_bought(id: String, level: int)
@@ -110,6 +110,7 @@ func harvest_tile(field_id: String, idx: int, source := "player") -> bool:
 		add_money(amount * float(data["crops"][crop]["sellPrice"]))
 
 	f["tiles"][idx] = 0
+	f["regrow"][idx] = Formulas.grow_time(data, stats, crop)
 	state["totals"]["tilesHarvested"] += 1
 	tile_harvested.emit(field_id, idx, source, amount)
 	if not f["tiles"].has(1):
@@ -122,11 +123,10 @@ func harvest_next(field_id: String, source := "player") -> bool:
 	return harvest_tile(field_id, state["fields"][field_id]["tiles"].find(1), source)
 
 
+## Prime quand toutes les tuiles sont coupees en meme temps
 func complete_field(field_id: String) -> void:
-	var def := field_def(field_id)
-	var bonus := Formulas.completion_bonus(data, stats, def)
+	var bonus := Formulas.completion_bonus(data, stats, field_def(field_id))
 	add_money(bonus)
-	state["fields"][field_id]["regrowLeft"] = Formulas.grow_time(data, stats, def["crop"])
 	state["totals"]["fieldsCompleted"] += 1
 	field_completed.emit(field_id, bonus)
 
@@ -164,16 +164,21 @@ func unlock_field(id: String) -> bool:
 func tick(delta: float) -> void:
 	state["playTime"] += delta
 
-	# Repousse des champs termines
+	# Repousse tuile par tuile
 	for def in data["fields"]:
 		var f: Dictionary = state["fields"][def["id"]]
-		if not f["unlocked"] or f["regrowLeft"] <= 0.0:
+		if not f["unlocked"]:
 			continue
-		f["regrowLeft"] -= delta
-		if f["regrowLeft"] <= 0.0:
-			f["regrowLeft"] = 0.0
-			f["tiles"].fill(1)
-			field_regrown.emit(def["id"])
+		var regrow: Array = f["regrow"]
+		var tiles: Array = f["tiles"]
+		for i in regrow.size():
+			if regrow[i] <= 0.0:
+				continue
+			regrow[i] -= delta
+			if regrow[i] <= 0.0:
+				regrow[i] = 0.0
+				tiles[i] = 1
+				tile_regrown.emit(def["id"], i)
 
 	# Automatisation : ouvriers
 	_auto_acc += float(stats["autoHarvestRate"]) * delta
@@ -191,7 +196,7 @@ func pick_auto_target() -> Dictionary:
 	var candidates: Array = []
 	for def in data["fields"]:
 		var f: Dictionary = state["fields"][def["id"]]
-		if f["unlocked"] and f["regrowLeft"] <= 0.0 and f["tiles"].has(1):
+		if f["unlocked"] and f["tiles"].has(1):
 			candidates.append(def["id"])
 	if candidates.is_empty():
 		return {}
