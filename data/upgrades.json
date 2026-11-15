@@ -9,7 +9,7 @@
     "op": "add",
     "value": 1,
     "baseCost": 80,
-    "costGrowth": 1.12,
+    "costGrowth": 1.11,
     "maxLevel": null
   },
   {
@@ -22,7 +22,7 @@
     "op": "add",
     "value": 150,
     "baseCost": 100,
-    "costGrowth": 1.2,
+    "costGrowth": 1.15,
     "maxLevel": null
   },
   {
@@ -35,7 +35,7 @@
     "op": "mul",
     "value": 0.85,
     "baseCost": 4000,
-    "costGrowth": 1.25,
+    "costGrowth": 1.2,
     "maxLevel": 10
   },
   {
@@ -48,7 +48,7 @@
     "op": "add",
     "value": 1,
     "baseCost": 4000,
-    "costGrowth": 1.13,
+    "costGrowth": 1.12,
     "maxLevel": null
   }
 ]

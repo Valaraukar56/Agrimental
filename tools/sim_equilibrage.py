@@ -1,6 +1,6 @@
 # Simulateur d'equilibrage (agent equilibrage). Lancer : python tools/sim_equilibrage.py
 # Modele : joueur actif 3D, debit = moveSpeed x 2 x harvestRadius, achete l'option la moins chere.
-# Attention : growTime (GT) et capacite de depart (CAP0) sont en parametres de run(), pas relus des JSON.
+# growTime, prix, capacite de depart et ratio de prime sont lus dans data/crops.json et data/balance.json.
 import json, math, random, heapq, statistics, sys
 import os; D = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data") + os.sep
 def load(eqcosts=None, eq=None):
@@ -9,8 +9,14 @@ def load(eqcosts=None, eq=None):
     if eqcosts:
         for e,c in zip(E,eqcosts): e['cost']=c
     return ups,fl,E
-def run(ups,fields,E,maxT=3*3600,dt=0.1,GT=40,CAP0=30,BONUS=.5,seed=1,K=2.0,fcosts=None):
+def run(ups,fields,E,maxT=3*3600,dt=0.1,GT=None,CAP0=None,BONUS=None,seed=1,K=2.0,fcosts=None):
     random.seed(seed)
+    bal=json.load(open(D+"balance.json",encoding="utf-8")); crops=json.load(open(D+"crops.json",encoding="utf-8"))
+    crop=crops["wheat"]; PRICE=crop["sellPrice"]
+    GT=GT if GT is not None else crop["growTime"]
+    CAP0=CAP0 if CAP0 is not None else bal["baseStats"]["sackCapacity"]
+    BONUS=BONUS if BONUS is not None else bal["completionBonusRatio"]
+    GM0=bal["baseStats"]["growTimeMult"]
     lv={u['id']:0 for u in ups}; tier=0
     F=[]
     for i,f in enumerate(fields):
@@ -18,7 +24,7 @@ def run(ups,fields,E,maxT=3*3600,dt=0.1,GT=40,CAP0=30,BONUS=.5,seed=1,K=2.0,fcos
         F.append(dict(w=f['width'],h=f['height'],cost=c,n=n,un=c==0,ripe=n,heap=[]))
     def stats():
         e=E[tier]; ms=e['set'].get('moveSpeed',6); r=e['set'].get('harvestRadius',0.9)
-        s=dict(y=1,cap=CAP0+e['add'].get('sackCapacity',0),gm=1.0,auto=0.0,ms=ms,r=r)
+        s=dict(y=1,cap=CAP0+e['add'].get('sackCapacity',0),gm=GM0,auto=0.0,ms=ms,r=r)
         for u in ups:
             l=lv[u['id']]
             if u['op']=='add': s[{'yieldPerTile':'y','sackCapacity':'cap','autoHarvestRate':'auto'}[u['stat']]]+=u['value']*l
@@ -28,7 +34,7 @@ def run(ups,fields,E,maxT=3*3600,dt=0.1,GT=40,CAP0=30,BONUS=.5,seed=1,K=2.0,fcos
     def harvest(fl,now):
         nonlocal money
         fl['ripe']-=1; heapq.heappush(fl['heap'],now+GT*st['gm'])
-        if fl['ripe']==0 and len(fl['heap'])==fl['n']: money+=math.ceil(fl['n']*st['y']*BONUS)
+        if fl['ripe']==0 and len(fl['heap'])==fl['n']: money+=math.ceil(fl['n']*st['y']*PRICE*BONUS)
     while t<maxT:
         for fl in F:
             if fl['un']:
@@ -42,13 +48,13 @@ def run(ups,fields,E,maxT=3*3600,dt=0.1,GT=40,CAP0=30,BONUS=.5,seed=1,K=2.0,fcos
             for fl in c:
                 r-=fl['ripe']
                 if r<=0:break
-            harvest(fl,t); money+=st['y']; aacc-=1
+            harvest(fl,t); money+=st['y']*PRICE; aacc-=1
         un=[fl for fl in F if fl['un']]
         best=max(un,key=lambda fl:fl['ripe'])
         PR=st['ms']*2*st['r']*(10/10.8)
         if trip>0:
             trip-=dt
-            if trip<=0: money+=sack; sack=0
+            if trip<=0: money+=sack*PRICE; sack=0
         else:
             dens=best['ripe']/best['n']
             if sack>0 and (sack>=st['cap'] or dens<0.05):
@@ -84,6 +90,16 @@ def report(log,full=False):
     for lo,hi in [(0,600),(600,1800),(1800,3600),(3600,7200),(7200,10800)]:
         g=[gaps[n] for n,x in enumerate(log) if lo<=x[0]<hi]
         if g: print(f"gaps {lo//60}-{hi//60} n={len(g)} med {statistics.median(g):.0f} max {max(g):.0f}")
+def phases(log,E):
+    lastf=max(t for t,k,i,c in log if k=='field'); log=[x for x in log if x[0]<=lastf]  # phases jusqu'au dernier champ
+    ts=[0]+[t for t,k,i,c in log if k=='eq']+[log[-1][0]+1]
+    for n in range(len(ts)-1):
+        lo,hi=ts[n],ts[n+1]; ev=[x for x in log if lo<=x[0]<hi or (n==0 and x[0]<hi)]
+        if n>0: ev=[x for x in log if lo<x[0]<hi]
+        g=[];p=lo
+        for x in ev: g.append(x[0]-p);p=x[0]
+        nf=sum(1 for x in ev if x[1]=='field'); nu=len(ev)-nf
+        print(f"{E[min(n,len(E)-1)]['id']:17s} {lo/60:6.1f}->{hi/60:6.1f} min ({(hi-lo)/60:5.1f}) achats {len(ev):3d} (champs {nf}, ameli {nu}) ecart max {max(g) if g else 0:.0f}s")
 if __name__=="__main__":
     ups,fl,E=load([int(x) for x in sys.argv[1].split(',')] if len(sys.argv)>1 else None)
-    report(run(ups,fl,E))
+    L=run(ups,fl,E); report(L); phases(L,E)

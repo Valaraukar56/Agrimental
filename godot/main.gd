@@ -377,7 +377,7 @@ func _build_hud() -> void:
 	hud["sack_bar"] = bar
 	hud["stats"] = _label(top, 14)
 	var help := _label(top, 14)
-	help.text = "ZQSD / flèches : bouger\nMarche sur le blé pour récolter\nEntre dans le hangar pour vendre\nApproche du PC bleu pour améliorer\nF9 : effacer la sauvegarde"
+	help.text = "ZQSD / flèches : bouger\nMarche sur le blé pour récolter\nEntre dans le hangar pour vendre\nApproche du PC bleu pour améliorer\nF8 : +10 000 (Maj+F8 : +1 M, test)\nF9 : effacer la sauvegarde"
 
 	var msg := _label(layer, 26)
 	msg.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -495,6 +495,11 @@ func _notification(what: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Triche de test (uniquement depuis l'editeur) : F8 = +10 000, Maj+F8 = +1 000 000
+	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_F8 and OS.is_debug_build():
+		var amount := 1000000.0 if event.shift_pressed else 10000.0
+		game.state["money"] += amount   # volontairement hors totals.earned : ne fausse pas les stats
+		_show_message("Triche : +%s" % _fmt(amount))
 	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_F9:
 		saving_enabled = false
 		Storage.clear_save()

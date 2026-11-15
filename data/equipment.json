@@ -12,7 +12,7 @@
     "id": "faux",
     "name": "Faux",
     "desc": "Un grand arc de coupe",
-    "cost": 1500,
+    "cost": 7000,
     "model": "pied",
     "set": { "harvestRadius": 1.5, "moveSpeed": 6 },
     "add": {}
@@ -21,7 +21,7 @@
     "id": "debroussailleuse",
     "name": "Débroussailleuse",
     "desc": "Coupe large, on avance plus vite",
-    "cost": 25000,
+    "cost": 65000,
     "model": "pied",
     "set": { "harvestRadius": 2.2, "moveSpeed": 7 },
     "add": {}
