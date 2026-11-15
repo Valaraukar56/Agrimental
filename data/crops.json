@@ -1,0 +1,8 @@
+{
+  "wheat": {
+    "name": "Blé",
+    "icon": "🌾",
+    "sellPrice": 1,
+    "growTime": 12
+  }
+}

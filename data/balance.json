@@ -1,0 +1,13 @@
+{
+  "saveKey": "agrimental.save",
+  "saveVersion": 1,
+  "saveIntervalSec": 10,
+  "startMoney": 0,
+  "completionBonusRatio": 0.5,
+  "baseStats": {
+    "yieldPerTile": 1,
+    "sackCapacity": 30,
+    "growTimeMult": 1,
+    "autoHarvestRate": 0
+  }
+}
