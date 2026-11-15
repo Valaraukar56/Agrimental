@@ -10,6 +10,7 @@ signal sack_full
 signal sold(value: float)
 signal upgrade_bought(id: String, level: int)
 signal field_unlocked(id: String)
+signal equipment_bought(id: String)
 
 var data: Dictionary
 var state: Dictionary
@@ -81,6 +82,29 @@ func can_buy_upgrade(id: String) -> bool:
 	return not is_upgrade_maxed(id) and state["money"] >= get_upgrade_cost(id)
 
 
+## Index du palier d'equipement possede dans data.equipment
+func equipment_index() -> int:
+	for i in data["equipment"].size():
+		if data["equipment"][i]["id"] == state["equipment"]:
+			return i
+	return 0
+
+
+func current_equipment() -> Dictionary:
+	return data["equipment"][equipment_index()]
+
+
+## Palier suivant, ou {} si on a deja le dernier
+func next_equipment() -> Dictionary:
+	var i := equipment_index() + 1
+	return data["equipment"][i] if i < data["equipment"].size() else {}
+
+
+func can_buy_next_equipment() -> bool:
+	var nxt := next_equipment()
+	return not nxt.is_empty() and state["money"] >= float(nxt["cost"])
+
+
 func can_unlock_field(id: String) -> bool:
 	return not state["fields"][id]["unlocked"] and state["money"] >= float(field_def(id)["unlockCost"])
 
@@ -148,6 +172,18 @@ func buy_upgrade(id: String) -> bool:
 	state["upgrades"][id] = upgrade_level(id) + 1
 	recompute()
 	upgrade_bought.emit(id, state["upgrades"][id])
+	return true
+
+
+## Les paliers s'achetent dans l'ordre ; le nouveau remplace l'ancien
+func buy_next_equipment() -> bool:
+	if not can_buy_next_equipment():
+		return false
+	var nxt := next_equipment()
+	state["money"] -= float(nxt["cost"])
+	state["equipment"] = nxt["id"]
+	recompute()
+	equipment_bought.emit(nxt["id"])
 	return true
 
 

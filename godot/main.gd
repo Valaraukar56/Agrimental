@@ -6,8 +6,7 @@ extends Node3D
 
 const FIELD_GAP := 4.0         # ecart entre le hangar et les champs (m) : regle la longueur des allers-retours
 const TILE_STEP := 1.0         # pas de la grille de ble (m)
-const PLAYER_SPEED := 6.0      # vitesse de marche (m/s)
-const HARVEST_RADIUS := 0.9    # rayon de recolte autour du joueur (m)
+# Vitesse et rayon de recolte viennent de l'equipement (data/equipment.json) : game.stats
 const HUB_HALF := 4.0          # demi-taille de la dalle du hangar (m)
 const PC_POS := Vector3(2.6, 0, -2.6)
 const PC_RANGE := 1.8          # distance pour utiliser le PC (m)
@@ -46,7 +45,11 @@ func _ready() -> void:
 		"pillar": _mat(Color(0.3, 0.3, 0.32)),
 		"pc": _mat(Color(0.2, 0.45, 0.9)),
 		"player": _mat(Color(0.9, 0.3, 0.25)),
+		"vehicle": _mat(Color(0.2, 0.6, 0.25)),
+		"reach": _mat(Color(1, 1, 1, 0.25)),
 	}
+	mats["reach"].transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mats["reach"].shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	tile_mesh = BoxMesh.new()
 	tile_mesh.size = Vector3(0.85, 1.0, 0.85)
 	var tile_mat := StandardMaterial3D.new()
@@ -64,6 +67,7 @@ func _ready() -> void:
 	game.field_completed.connect(_on_field_completed)
 	game.field_unlocked.connect(_on_field_unlocked)
 	game.sack_full.connect(func(): _show_message("Sac plein ! Retourne au hangar pour vendre."))
+	game.equipment_bought.connect(_on_equipment_bought)
 	game.sold.connect(func(v: float): _show_message("Vendu : +%s" % _fmt(v)))
 
 
@@ -102,11 +106,11 @@ func _move_player(delta: float) -> void:
 		dir.x += 1
 	if dir != Vector3.ZERO:
 		dir = dir.normalized()
-		player.position += dir * PLAYER_SPEED * delta
+		player.position += dir * float(game.stats["moveSpeed"]) * delta
 		player.position.x = clampf(player.position.x, -world_half, world_half)
 		player.position.z = clampf(player.position.z, -world_half, world_half)
 		player.rotation.y = atan2(dir.x, dir.z)
-	var target := player.position + CAMERA_OFFSET
+	var target := player.position + _camera_offset()
 	camera.position = camera.position.lerp(target, 1.0 - exp(-8.0 * delta))
 	camera.look_at(player.position)
 
@@ -126,7 +130,7 @@ func _harvest_around_player() -> void:
 		var local: Vector3 = p - fn["root"].position
 		var cx := local.x / TILE_STEP + (w - 1) * 0.5
 		var cz := local.z / TILE_STEP + (h - 1) * 0.5
-		var r := HARVEST_RADIUS / TILE_STEP
+		var r := float(game.stats["harvestRadius"]) / TILE_STEP
 		for z in range(maxi(0, ceili(cz - r)), mini(h - 1, floori(cz + r)) + 1):
 			for x in range(maxi(0, ceili(cx - r)), mini(w - 1, floori(cx + r)) + 1):
 				var i: int = z * w + x
@@ -251,20 +255,48 @@ func _build_field(def: Dictionary) -> void:
 func _build_player() -> void:
 	player = Node3D.new()
 	add_child(player)
-	var body := MeshInstance3D.new()
-	var cm := CapsuleMesh.new()
-	cm.radius = 0.4
-	cm.height = 1.8
-	body.mesh = cm
-	body.material_override = mats["player"]
-	body.position.y = 0.9
-	player.add_child(body)
-	_box(Vector3(0.25, 0.25, 0.4), Vector3(0, 1.4, 0.4), mats["pillar"], player)   # "nez" : direction
+	_build_player_model()
 
 	camera = Camera3D.new()
 	add_child(camera)
-	camera.position = player.position + CAMERA_OFFSET
+	camera.position = player.position + _camera_offset()
 	camera.look_at(player.position)
+
+
+## Reconstruit le modele selon l'equipement : a pied (capsule) ou vehicule (gros cube),
+## plus un disque au sol qui montre le rayon de recolte.
+func _build_player_model() -> void:
+	for c in player.get_children():
+		c.queue_free()
+	if game.current_equipment()["model"] == "vehicule":
+		_box(Vector3(2.4, 1.2, 3.4), Vector3(0, 0.8, 0), mats["vehicle"], player)
+		_box(Vector3(1.4, 1.0, 1.2), Vector3(0, 1.9, -0.8), mats["player"], player)    # cabine
+		_box(Vector3(float(game.stats["harvestRadius"]) * 2, 0.4, 0.6), Vector3(0, 0.4, 2.0), mats["pillar"], player)   # barre de coupe
+	else:
+		var body := MeshInstance3D.new()
+		var cm := CapsuleMesh.new()
+		cm.radius = 0.4
+		cm.height = 1.8
+		body.mesh = cm
+		body.material_override = mats["player"]
+		body.position.y = 0.9
+		player.add_child(body)
+		_box(Vector3(0.25, 0.25, 0.4), Vector3(0, 1.4, 0.4), mats["pillar"], player)   # "nez" : direction
+
+	var disc := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = float(game.stats["harvestRadius"])
+	cyl.bottom_radius = cyl.top_radius
+	cyl.height = 0.02
+	disc.mesh = cyl
+	disc.material_override = mats["reach"]
+	disc.position.y = 0.04
+	player.add_child(disc)
+
+
+## Camera un peu plus haute quand le rayon de coupe grandit
+func _camera_offset() -> Vector3:
+	return CAMERA_OFFSET * (1.0 + float(game.stats["harvestRadius"]) * 0.12)
 
 
 # ---------- Mise a jour visuelle ----------
@@ -317,6 +349,11 @@ func _on_field_completed(id: String, bonus: float) -> void:
 	tw.chain().tween_callback(l.queue_free)
 
 
+func _on_equipment_bought(_id: String) -> void:
+	_build_player_model()
+	_show_message("Nouvel équipement : %s !" % game.current_equipment()["name"])
+
+
 func _on_field_unlocked(id: String) -> void:
 	field_nodes[id]["root"].queue_free()
 	_build_field(game.field_def(id))
@@ -359,6 +396,12 @@ func _build_hud() -> void:
 	var box := VBoxContainer.new()
 	panel.add_child(box)
 	_label(box, 22).text = "PC d'amélioration"
+	hud["equipment_label"] = _label(box, 16)
+	var eb := Button.new()
+	eb.pressed.connect(game.buy_next_equipment)
+	box.add_child(eb)
+	hud["equipment_button"] = eb
+	_label(box, 18).text = "Améliorations"
 	hud["upgrade_buttons"] = {}
 	for def in game.data["upgrades"]:
 		var b := Button.new()
@@ -394,6 +437,17 @@ func _update_hud(delta: float) -> void:
 		_fmt(game.state["totals"]["tilesHarvested"]), game.state["totals"]["fieldsCompleted"], str(st["autoHarvestRate"])]
 
 	if hud["panel"].visible:
+		var cur := game.current_equipment()
+		hud["equipment_label"].text = "Équipement : %s (rayon %s m, vitesse %s m/s)" % [
+			cur["name"], String.num(st["harvestRadius"], 1), String.num(st["moveSpeed"], 1)]
+		var nxt := game.next_equipment()
+		var eb: Button = hud["equipment_button"]
+		if nxt.is_empty():
+			eb.text = "Équipement au maximum"
+			eb.disabled = true
+		else:
+			eb.text = "Acheter : %s, %s   [%s]" % [nxt["name"], nxt["desc"], _fmt(float(nxt["cost"]))]
+			eb.disabled = not game.can_buy_next_equipment()
 		for def in game.data["upgrades"]:
 			var id: String = def["id"]
 			var b: Button = hud["upgrade_buttons"][id]

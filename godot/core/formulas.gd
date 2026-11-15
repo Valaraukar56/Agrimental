@@ -8,9 +8,16 @@ static func upgrade_cost(def: Dictionary, level: int) -> int:
 	return int(ceil(float(def["baseCost"]) * pow(float(def["costGrowth"]), level)))
 
 
-## Stats effectives = stats de base + effets de toutes les ameliorations
+## Stats effectives : base -> "set" de l'equipement -> "add" de l'equipement -> ameliorations
 static func compute_stats(data: Dictionary, state: Dictionary) -> Dictionary:
 	var stats: Dictionary = data["balance"]["baseStats"].duplicate()
+	for equip in data["equipment"]:
+		if equip["id"] != state["equipment"]:
+			continue
+		for stat in equip["set"]:
+			stats[stat] = float(equip["set"][stat])
+		for stat in equip["add"]:
+			stats[stat] = float(stats.get(stat, 0.0)) + float(equip["add"][stat])
 	for def in data["upgrades"]:
 		var lvl := int(state["upgrades"].get(def["id"], 0))
 		if lvl == 0:

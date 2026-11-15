@@ -2,7 +2,9 @@
 
 Jeu incrémental agricole : un hangar central entouré de champs de blé. On balaie les champs pour récolter, on revient vendre au hangar, on améliore ses outils au PC, puis on automatise avec des ouvriers. Vider un champ à 100 % donne une prime.
 
-## Lancer en local
+> **Version de référence : Godot (3D).** La version web est **gelée** depuis l'ajout des équipements : elle reste en ligne comme V1, ne reçoit plus de nouveautés, et ignore `data/equipment.json`. On la corrige seulement si un changement de `data/` la casse.
+
+## Lancer la version web (gelée)
 
 `fetch()` ne marche pas en double-cliquant sur `index.html`, il faut un petit serveur :
 
@@ -15,10 +17,10 @@ Puis ouvrir http://localhost:8080. Sur GitHub Pages, ça marche tel quel.
 ## Version Godot 4 (prototype 3D greybox)
 
 Ouvrir le dossier racine dans Godot 4.6 (`project.godot`), puis F5.
-- ZQSD ou flèches : bouger. Marcher sur le blé récolte, entrer dans le hangar vend, s'approcher du PC bleu ouvre les améliorations. F9 efface la sauvegarde.
-- Elle lit les **mêmes** `data/*.json` que la version web : un changement d'équilibrage s'applique aux deux.
-- `godot/core/` : port 1 pour 1 de `js/core/` (même API, signaux à la place des événements).
-- `godot/main.gd` : monde 3D construit par code. Ses constantes (distance hangar-champs, vitesse, rayon de récolte) règlent la sensation, pas l'économie.
+- ZQSD ou flèches : bouger. Marcher sur le blé récolte, entrer dans le hangar vend, s'approcher du PC bleu ouvre les améliorations et les équipements. F9 efface la sauvegarde.
+- Équipements à paliers (`data/equipment.json`) : Faucille, Faux, Débroussailleuse, Moissonneuse (véhicule). Chaque palier remplace le précédent et fixe le rayon de récolte (`harvestRadius`, visible au sol) et la vitesse (`moveSpeed`).
+- `godot/core/` : logique pure, issue du port de `js/core/` (même API, signaux à la place des événements). Les équipements n'existent que côté Godot.
+- `godot/main.gd` : monde 3D construit par code. Ses constantes (écart hangar-champs, caméra) règlent la sensation, pas l'économie.
 - Tests headless :
   `Godot_v4.6.2-stable_win64_console.exe --headless --path . --script res://godot/tests/test_game.gd` (même chose avec `test_scene.gd`).
 - Les dossiers `js/`, `css/` et `docs/` contiennent un `.gdignore` pour que Godot les ignore.
@@ -45,9 +47,10 @@ Tout se règle dans `data/`, sans toucher au code.
 - Repousse par épi : chaque épi récolté repousse seul après `crops.wheat.growTime × growTimeMult` secondes (base 40 s). Débit max d'un champ = tuiles / temps de repousse.
 - Prime de champ propre : `nb tuiles × blé par épi × prix × completionBonusRatio`, quand toutes les tuiles sont récoltées en même temps (vider le champ plus vite qu'il ne repousse).
 - Échelle : champs de 15x10 à 30x25, épi de base à 1 pour 1 : c'est l'échelle des coûts qui donne la sensation "l'épi vaut peu".
-- Principe : les améliorations d'outils (sac, faucille) arrivent AVANT le premier champ. Premier achat vers 25 s, champ 2 vers 5 min.
-- Repères simulés (joueur actif ~10 épis/s en marchant, aller-retour hangar 5 à 8 s, achète toujours l'option la moins chère) : champ 2 à 5 min, champ 3 à 9 min, champ 4 à 19 min, champ 5 à 29 min, champ 6 à 43 min, champ 7 à 64 min, champ 8 (dernier) à 1 h 46. Un achat toutes les 10 à 25 s avant 30 min, 30 à 60 s vers 30-60 min, 1 à 2 min après 1 h.
-- Les coûts de champ (500, 1 800, 5 400, 16 000, 48 000, 145 000, 440 000, ratio ~3) et les `costGrowth` sont réglés ensemble : si on change l'un, rejouer la simulation.
+- Principe : les améliorations d'outils (sac, lame) arrivent AVANT le premier champ. Premier achat vers 25 s.
+- Équipements (`data/equipment.json`, Godot) : débit en marchant ≈ `moveSpeed × 2 × harvestRadius` épis/s. Le sac doit rester assez grand pour que ce débit compte (sinon le joueur passe son temps en trajets) : c'est pourquoi "Grand sac" donne +150 places par niveau.
+- Repères simulés (joueur actif, achète toujours l'option la moins chère) : Faux à 6 min, Débroussailleuse à 23 min, Moissonneuse à 67 min. Champs 2 à 8 : 3,4 / 8,2 / 14 / 23 / 35 / 56 / 100 min. Un achat toutes les 13 à 45 s avant 1 h, 1 à 3 min après.
+- Les coûts de champ (250, 2 700, 8 100, 24 000, 72 000, 217 500, 660 000) et les `costGrowth` sont réglés ensemble : si on change l'un, rejouer la simulation.
 - Si le joueur attend plus de 2 min entre deux achats, baisser `baseCost` ou `costGrowth`. S'il achète tout sans réfléchir, monter `costGrowth`.
 
-Console du navigateur : `game.state.money += 1000` pour tester.
+Pour tester : console du navigateur `game.state.money += 1000` (web), ou modifier `user://save.json` (Godot).

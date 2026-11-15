@@ -86,5 +86,25 @@ func _init() -> void:
 	var c3: int = g3.state["fields"]["f1"]["tiles"].find(0)
 	check(c3 < 0 or is_equal_approx(float(g3.state["fields"]["f1"]["regrow"][c3]), grow), "migration ancienne sauvegarde")
 
+	# Equipements a paliers
+	var ge := Game.new(data)
+	var eq: Array = data["equipment"]
+	check(ge.state["equipment"] == eq[0]["id"], "equipement de depart = %s" % eq[0]["name"])
+	check(is_equal_approx(ge.stats["harvestRadius"], float(eq[0]["set"]["harvestRadius"])), "rayon de depart lu dans equipment.json")
+	check(not ge.buy_next_equipment(), "pas d'achat d'equipement sans argent")
+	var base_sack := float(ge.stats["sackCapacity"])
+	for k in range(1, eq.size()):
+		ge.state["money"] = float(eq[k]["cost"])
+		check(ge.buy_next_equipment(), "achat du palier %d : %s" % [k, eq[k]["name"]])
+		check(ge.state["money"] == 0.0, "  cout debite (%s)" % eq[k]["cost"])
+		check(is_equal_approx(ge.stats["moveSpeed"], float(eq[k]["set"]["moveSpeed"])), "  vitesse remplacee")
+		var add_sack := float(eq[k]["add"].get("sackCapacity", 0.0))
+		check(is_equal_approx(ge.stats["sackCapacity"], base_sack + add_sack), "  bonus de sac du palier (%s)" % add_sack)
+	ge.state["money"] = 1e12
+	check(ge.next_equipment().is_empty() and not ge.buy_next_equipment(), "pas de palier au-dela du dernier")
+	var ge2 := Game.new(data, JSON.parse_string(JSON.stringify(ge.serialize())))
+	check(ge2.state["equipment"] == eq[-1]["id"] and is_equal_approx(ge2.stats["harvestRadius"], ge.stats["harvestRadius"]), "sauvegarde : equipement conserve")
+	check(Game.new(data, {"equipment": "inconnu"}).state["equipment"] == eq[0]["id"], "equipement inconnu dans la sauvegarde -> palier 0")
+
 	print("\n%s" % ("TOUS LES TESTS PASSENT" if failures == 0 else "%d ECHEC(S)" % failures))
 	quit(1 if failures else 0)

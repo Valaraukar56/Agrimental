@@ -1,0 +1,38 @@
+[
+  {
+    "id": "faucille",
+    "name": "Faucille",
+    "desc": "Récolte à la main, autour de toi",
+    "cost": 0,
+    "model": "pied",
+    "set": { "harvestRadius": 0.9, "moveSpeed": 6 },
+    "add": {}
+  },
+  {
+    "id": "faux",
+    "name": "Faux",
+    "desc": "Un grand arc de coupe",
+    "cost": 1500,
+    "model": "pied",
+    "set": { "harvestRadius": 1.5, "moveSpeed": 6 },
+    "add": {}
+  },
+  {
+    "id": "debroussailleuse",
+    "name": "Débroussailleuse",
+    "desc": "Coupe large, on avance plus vite",
+    "cost": 25000,
+    "model": "pied",
+    "set": { "harvestRadius": 2.2, "moveSpeed": 7 },
+    "add": {}
+  },
+  {
+    "id": "moissonneuse",
+    "name": "Moissonneuse",
+    "desc": "Véhicule : coupe énorme, rapide, grosse trémie",
+    "cost": 300000,
+    "model": "vehicule",
+    "set": { "harvestRadius": 3.2, "moveSpeed": 10 },
+    "add": { "sackCapacity": 1500 }
+  }
+]

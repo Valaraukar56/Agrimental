@@ -2,7 +2,12 @@
 
 > Le portage Godot existe : `godot/core/game.gd` (classe `Game`), `game_state.gd`, `formulas.gd`, `data_loader.gd`, `godot/platform/storage.gd`.
 > Les noms de fonctions passent en snake_case (`harvestTile` devient `harvest_tile`), les événements deviennent des signaux (`fieldCompleted` devient `field_completed`).
-> Toute modification de `js/core/` doit être reportée dans `godot/core/`, et inversement.
+> **La version web est gelée** : `godot/core/` est la référence. Les nouveautés (équipements, puis drones) ne sont codées que côté Godot.
+>
+> Ajouts Godot uniquement :
+> - Données : `data/equipment.json` (paliers : `cost`, `model` = `pied`/`vehicule`, `set` remplace des stats, `add` s'y ajoute). Stats : base, puis `set`, puis `add`, puis améliorations.
+> - État : `equipment` (id du palier possédé).
+> - API : `equipment_index()`, `current_equipment()`, `next_equipment()`, `can_buy_next_equipment()`, `buy_next_equipment()`. Signal : `equipment_bought(id)`.
 
 Règle : **données → logique → affichage**, jamais l'inverse.
 - `data/*.json` ne contient que des chiffres et des textes.

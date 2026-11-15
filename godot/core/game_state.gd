@@ -24,6 +24,7 @@ static func create(data: Dictionary) -> Dictionary:
 		"money": float(data["balance"]["startMoney"]),
 		"sack": {},
 		"upgrades": {},
+		"equipment": data["equipment"][0]["id"],   # palier possede (le premier au depart)
 		"fields": fields,
 		"totals": {"earned": 0.0, "tilesHarvested": 0, "fieldsCompleted": 0},
 		"playTime": 0.0,
@@ -45,6 +46,10 @@ static func migrate(saved: Variant, data: Dictionary) -> Dictionary:
 	if ups is Dictionary:
 		for id in ups:
 			state["upgrades"][id] = int(ups[id])
+	var equip: Variant = saved.get("equipment")
+	for e in data["equipment"]:
+		if e["id"] == equip:
+			state["equipment"] = equip
 	var totals: Variant = saved.get("totals", {})
 	if totals is Dictionary:
 		state["totals"]["earned"] = float(totals.get("earned", 0))

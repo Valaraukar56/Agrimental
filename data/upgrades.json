@@ -1,7 +1,7 @@
 [
   {
     "id": "sickle",
-    "name": "Faucille affûtée",
+    "name": "Lame affûtée",
     "icon": "🔪",
     "desc": "+1 blé par épi récolté",
     "category": "tool",
@@ -16,11 +16,11 @@
     "id": "sack",
     "name": "Grand sac",
     "icon": "🎒",
-    "desc": "+50 places dans le sac",
+    "desc": "+150 places dans le sac",
     "category": "tool",
     "stat": "sackCapacity",
     "op": "add",
-    "value": 50,
+    "value": 150,
     "baseCost": 100,
     "costGrowth": 1.2,
     "maxLevel": null

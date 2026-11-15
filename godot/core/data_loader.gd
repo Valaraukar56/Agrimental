@@ -2,7 +2,7 @@ class_name DataLoader
 extends RefCounted
 ## Port de js/data/loader.js. Lit les MEMES fichiers que la version web.
 
-const FILES := ["crops", "fields", "upgrades", "balance"]
+const FILES := ["crops", "fields", "upgrades", "balance", "equipment"]
 
 
 static func load_data(base := "res://data/") -> Dictionary:

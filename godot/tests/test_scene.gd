@@ -38,5 +38,21 @@ func _process(_delta: float) -> bool:
 			frames = 0
 		3:
 			print(("OK   " if main.hud["panel"].visible else "FAIL ") + "panneau PC visible pres du PC")
+			# Acheter tous les paliers jusqu'au vehicule, puis recolter ailleurs dans le champ 1
+			g.state["money"] = 1e12
+			while g.buy_next_equipment():
+				pass
+			g.state["upgrades"]["sack"] = 100
+			g.recompute()
+			main.player.position = main.field_nodes["f1"]["root"].position + Vector3(4, 0, 0)
+			step = 4
+			frames = 0
+		4:
+			var r := float(g.stats["harvestRadius"])
+			var got := g.sack_count()
+			print(("OK   " if g.current_equipment()["model"] == "vehicule" else "FAIL ") + "equipement final : %s" % g.current_equipment()["name"])
+			# disque de rayon r : environ pi*r^2 epis (x rendement par epi)
+			var expected := PI * r * r * 0.6 * float(g.stats["yieldPerTile"])
+			print(("OK   " if got >= expected else "FAIL ") + "recolte en vehicule, rayon %s m : %d epis (attendu >= %d)" % [r, got, expected])
 			return true
 	return false
