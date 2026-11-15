@@ -12,6 +12,17 @@ python -m http.server 8080
 
 Puis ouvrir http://localhost:8080. Sur GitHub Pages, ça marche tel quel.
 
+## Version Godot 4 (prototype 3D greybox)
+
+Ouvrir le dossier racine dans Godot 4.6 (`project.godot`), puis F5.
+- ZQSD ou flèches : bouger. Marcher sur le blé récolte, entrer dans le hangar vend, s'approcher du PC bleu ouvre les améliorations. F9 efface la sauvegarde.
+- Elle lit les **mêmes** `data/*.json` que la version web : un changement d'équilibrage s'applique aux deux.
+- `godot/core/` : port 1 pour 1 de `js/core/` (même API, signaux à la place des événements).
+- `godot/main.gd` : monde 3D construit par code. Ses constantes (distance hangar-champs, vitesse, rayon de récolte) règlent la sensation, pas l'économie.
+- Tests headless :
+  `Godot_v4.6.2-stable_win64_console.exe --headless --path . --script res://godot/tests/test_game.gd` (même chose avec `test_scene.gd`).
+- Les dossiers `js/`, `css/` et `docs/` contiennent un `.gdignore` pour que Godot les ignore.
+
 ## Structure
 
 ```

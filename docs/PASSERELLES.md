@@ -1,5 +1,9 @@
 # Passerelles (interfaces entre les couches)
 
+> Le portage Godot existe : `godot/core/game.gd` (classe `Game`), `game_state.gd`, `formulas.gd`, `data_loader.gd`, `godot/platform/storage.gd`.
+> Les noms de fonctions passent en snake_case (`harvestTile` devient `harvest_tile`), les événements deviennent des signaux (`fieldCompleted` devient `field_completed`).
+> Toute modification de `js/core/` doit être reportée dans `godot/core/`, et inversement.
+
 Règle : **données → logique → affichage**, jamais l'inverse.
 - `data/*.json` ne contient que des chiffres et des textes.
 - `js/core/` ne touche ni au DOM ni à `localStorage`. C'est la partie à réécrire en GDScript.
