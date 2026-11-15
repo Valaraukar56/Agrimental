@@ -2,7 +2,9 @@
 
 Règle : rien ici ne se code tant que la V1 n'est pas en ligne et jouée.
 
-## Drones assignés à un champ (V2, pensé pour la 3D Godot)
+## Drones assignés à un champ : FAIT (Godot, 2026-11-15)
+
+Implémenté comme décrit ci-dessous (remplace l'ouvrier, assignation au PC, premier drone pendant la phase Faux). Reste ouvert : la distance par champ est calculée par la disposition (`balance.world`), pas stockée dans `fields.json`.
 
 Remplace l'ouvrier agricole actuel (`farmhand`, récolte instantanée et aléatoire).
 

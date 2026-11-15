@@ -62,20 +62,16 @@ func _init() -> void:
 	check(is_equal_approx(g.stats["sackCapacity"], float(data["balance"]["baseStats"]["sackCapacity"]) + float(sack_def["value"])), "capacite du sac augmentee")
 	check(g.get_upgrade_cost("sack") == int(ceil(float(sack_def["baseCost"]) * float(sack_def["costGrowth"]))), "cout niveau 1 = base x croissance")
 
-	# Ouvrier
+	# Quelques epis coupes pour tester la sauvegarde des minuteurs
 	g.tick(grow + 1.0)
-	var ripe_before := g.ripe_count("f1")
-	g.state["money"] = 1e9
-	check(g.buy_upgrade("farmhand"), "achat ouvrier")
-	var rate := float(g.stats["autoHarvestRate"])
-	g.tick(4.0 / rate)
-	check(ripe_before - g.ripe_count("f1") == 4, "ouvrier : 4 epis en %s s" % (4.0 / rate))
+	for i in 4:
+		g.harvest_tile("f1", i)
 
 	# Aller-retour sauvegarde JSON (les nombres reviennent en float)
 	var saved: Variant = JSON.parse_string(JSON.stringify(g.serialize()))
 	var g2 := Game.new(data, saved)
 	check(g2.ripe_count("f1") == g.ripe_count("f1"), "sauvegarde : tuiles conservees")
-	check(g2.upgrade_level("farmhand") == 1, "sauvegarde : niveaux conserves")
+	check(g2.upgrade_level("sack") == 1, "sauvegarde : niveaux conserves")
 	check(g2.state["fields"]["f1"]["tiles"].has(1), "sauvegarde : tuiles relues en int")
 	var cut: int = g2.state["fields"]["f1"]["tiles"].find(0)
 	check(cut >= 0 and g2.state["fields"]["f1"]["regrow"][cut] > 0.0, "sauvegarde : minuteurs conserves")

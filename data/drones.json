@@ -1,0 +1,41 @@
+[
+  {
+    "id": "drone",
+    "name": "Drone de récolte",
+    "icon": "",
+    "desc": "+1 drone : vole au champ, récolte, revient vendre",
+    "category": "automation",
+    "stat": "droneCount",
+    "op": "add",
+    "value": 1,
+    "baseCost": 15000,
+    "costGrowth": 1.6,
+    "maxLevel": 20
+  },
+  {
+    "id": "drone_speed",
+    "name": "Moteurs de drone",
+    "icon": "",
+    "desc": "Drones 15 % plus rapides",
+    "category": "automation",
+    "stat": "droneSpeed",
+    "op": "mul",
+    "value": 1.15,
+    "baseCost": 40000,
+    "costGrowth": 1.55,
+    "maxLevel": 10
+  },
+  {
+    "id": "drone_cargo",
+    "name": "Soute de drone",
+    "icon": "",
+    "desc": "+15 épis par voyage",
+    "category": "automation",
+    "stat": "droneCargo",
+    "op": "add",
+    "value": 15,
+    "baseCost": 25000,
+    "costGrowth": 1.45,
+    "maxLevel": null
+  }
+]

@@ -25,6 +25,8 @@ static func create(data: Dictionary) -> Dictionary:
 		"sack": {},
 		"upgrades": {},
 		"equipment": data["equipment"][0]["id"],   # palier possede (le premier au depart)
+		"drones": [],          # un Dictionary par drone : voir Game._new_drone()
+		"droneAssign": {},     # { field_id: nombre de drones assignes }
 		"fields": fields,
 		"totals": {"earned": 0.0, "tilesHarvested": 0, "fieldsCompleted": 0},
 		"playTime": 0.0,
@@ -45,7 +47,18 @@ static func migrate(saved: Variant, data: Dictionary) -> Dictionary:
 	var ups: Variant = saved.get("upgrades", {})
 	if ups is Dictionary:
 		for id in ups:
+			if id == "farmhand":
+				continue
 			state["upgrades"][id] = int(ups[id])
+		# L'ouvrier agricole est remplace par les drones : N ouvriers deviennent N drones
+		if int(ups.get("farmhand", 0)) > 0 and not state["upgrades"].has("drone"):
+			state["upgrades"]["drone"] = int(ups["farmhand"])
+	var assign: Variant = saved.get("droneAssign", {})
+	if assign is Dictionary:
+		for def in data["fields"]:
+			if int(assign.get(def["id"], 0)) > 0:
+				state["droneAssign"][def["id"]] = int(assign[def["id"]])
+	# Les drones repartent du hangar au chargement (pas de vol en cours sauvegarde)
 	var equip: Variant = saved.get("equipment")
 	for e in data["equipment"]:
 		if e["id"] == equip:

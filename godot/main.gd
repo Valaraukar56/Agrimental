@@ -4,10 +4,7 @@ extends Node3D
 ## Les constantes ci-dessous reglent la SENSATION (distances, vitesse),
 ## pas l'economie (qui reste dans data/*.json).
 
-const FIELD_GAP := 4.0         # ecart entre le hangar et les champs (m) : regle la longueur des allers-retours
-const TILE_STEP := 1.0         # pas de la grille de ble (m)
 # Vitesse et rayon de recolte viennent de l'equipement (data/equipment.json) : game.stats
-const HUB_HALF := 4.0          # demi-taille de la dalle du hangar (m)
 const PC_POS := Vector3(2.6, 0, -2.6)
 const PC_RANGE := 1.8          # distance pour utiliser le PC (m)
 const CAMERA_OFFSET := Vector3(0, 14, 10)
@@ -20,9 +17,12 @@ var game: Game
 var player: Node3D
 var camera: Camera3D
 var field_nodes := {}          # id -> { root, mm, cache, label, w, h }
-var field_origins := {}        # id -> Vector3, calcule a partir des tailles de champs
+var field_origins := {}        # id -> Vector3 : Layout.compute (godot/core/layout.gd)
+var tile_step := 1.0           # pas de la grille (balance.world.tileStep)
+var hub_half := 4.0            # demi-taille du hangar (balance.world.hubHalf)
 var world_half := 40.0         # limite de deplacement (m)
 var visual_acc := 0.0
+var drone_nodes: Array = []    # un Node3D par drone, positionne d'apres game.state.drones
 var hud := {}
 var mats := {}
 var tile_mesh: BoxMesh
@@ -46,6 +46,7 @@ func _ready() -> void:
 		"pc": _mat(Color(0.2, 0.45, 0.9)),
 		"player": _mat(Color(0.9, 0.3, 0.25)),
 		"vehicle": _mat(Color(0.2, 0.6, 0.25)),
+		"drone": _mat(Color(1.0, 0.55, 0.1)),
 		"reach": _mat(Color(1, 1, 1, 0.25)),
 	}
 	mats["reach"].transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -79,11 +80,12 @@ func _process(delta: float) -> void:
 	_harvest_around_player()
 
 	var p := player.position
-	if absf(p.x) <= HUB_HALF and absf(p.z) <= HUB_HALF:
+	if absf(p.x) <= hub_half and absf(p.z) <= hub_half:
 		game.sell()   # entrer dans le hangar vend automatiquement
 	hud["panel"].visible = p.distance_to(PC_POS) <= PC_RANGE
 
 	_update_fields(delta)
+	_update_drones(delta)
 	_update_hud(delta)
 
 	save_acc += delta
@@ -128,9 +130,9 @@ func _harvest_around_player() -> void:
 		var tiles: Array = f["tiles"]
 		# Position du joueur en coordonnees de grille, puis seulement les tuiles proches
 		var local: Vector3 = p - fn["root"].position
-		var cx := local.x / TILE_STEP + (w - 1) * 0.5
-		var cz := local.z / TILE_STEP + (h - 1) * 0.5
-		var r := float(game.stats["harvestRadius"]) / TILE_STEP
+		var cx := local.x / tile_step + (w - 1) * 0.5
+		var cz := local.z / tile_step + (h - 1) * 0.5
+		var r := float(game.stats["harvestRadius"]) / tile_step
 		for z in range(maxi(0, ceili(cz - r)), mini(h - 1, floori(cz + r)) + 1):
 			for x in range(maxi(0, ceili(cx - r)), mini(w - 1, floori(cx + r)) + 1):
 				var i: int = z * w + x
@@ -195,35 +197,26 @@ func _build_environment() -> void:
 
 
 func _build_hub() -> void:
-	_box(Vector3(HUB_HALF * 2, 0.1, HUB_HALF * 2), Vector3(0, 0.05, 0), mats["hub"], self)
+	_box(Vector3(hub_half * 2, 0.1, hub_half * 2), Vector3(0, 0.05, 0), mats["hub"], self)
 	for sx in [-1, 1]:
 		for sz in [-1, 1]:
-			_box(Vector3(0.3, 3.5, 0.3), Vector3(sx * (HUB_HALF - 0.2), 1.75, sz * (HUB_HALF - 0.2)), mats["pillar"], self)
+			_box(Vector3(0.3, 3.5, 0.3), Vector3(sx * (hub_half - 0.2), 1.75, sz * (hub_half - 0.2)), mats["pillar"], self)
 	_box(Vector3(0.8, 1.2, 0.6), PC_POS + Vector3(0, 0.6, 0), mats["pc"], self)
 	_label3d("PC", PC_POS + Vector3(0, 1.8, 0), self, 48)
 	_label3d("HANGAR (vente)", Vector3(0, 4.2, 0), self, 72)
 
 
-## Place les champs autour du hangar selon slot.col / slot.row (grille 3x3, hangar au centre).
-## Chaque colonne et ligne est aussi large que son plus grand champ : aucun chevauchement.
+## Disposition des champs : calculee dans la logique (aussi utilisee pour le vol des drones)
 func _compute_layout() -> void:
-	var col_w := {1: 0.0, 2: HUB_HALF * 2, 3: 0.0}
-	var row_h := {1: 0.0, 2: HUB_HALF * 2, 3: 0.0}
-	for def in game.data["fields"]:
-		var c := int(def["slot"]["col"])
-		var r := int(def["slot"]["row"])
-		col_w[c] = maxf(col_w[c], int(def["width"]) * TILE_STEP)
-		row_h[r] = maxf(row_h[r], int(def["height"]) * TILE_STEP)
-	var col_x := {1: -(col_w[2] / 2 + FIELD_GAP + col_w[1] / 2), 2: 0.0, 3: col_w[2] / 2 + FIELD_GAP + col_w[3] / 2}
-	var row_z := {1: -(row_h[2] / 2 + FIELD_GAP + row_h[1] / 2), 2: 0.0, 3: row_h[2] / 2 + FIELD_GAP + row_h[3] / 2}
-	for def in game.data["fields"]:
-		field_origins[def["id"]] = Vector3(col_x[int(def["slot"]["col"])], 0, row_z[int(def["slot"]["row"])])
-	world_half = maxf(col_w[2] / 2 + FIELD_GAP + maxf(col_w[1], col_w[3]),
-		row_h[2] / 2 + FIELD_GAP + maxf(row_h[1], row_h[3])) + 6.0
+	var layout := Layout.compute(game.data)
+	field_origins = layout["origins"]
+	world_half = layout["world_half"]
+	tile_step = layout["tile_step"]
+	hub_half = layout["hub_half"]
 
 
 func _tile_local(i: int, w: int, h: int) -> Vector3:
-	return Vector3((i % w - (w - 1) * 0.5) * TILE_STEP, 0, (floori(float(i) / w) - (h - 1) * 0.5) * TILE_STEP)
+	return Layout.tile_local(i, w, h, tile_step)
 
 
 func _build_field(def: Dictionary) -> void:
@@ -235,7 +228,7 @@ func _build_field(def: Dictionary) -> void:
 	var root := Node3D.new()
 	root.position = field_origins[id]
 	add_child(root)
-	_box(Vector3(w * TILE_STEP + 0.4, 0.05, h * TILE_STEP + 0.4), Vector3(0, 0.025, 0), mats["soil"] if unlocked else mats["locked"], root)
+	_box(Vector3(w * tile_step + 0.4, 0.05, h * tile_step + 0.4), Vector3(0, 0.025, 0), mats["soil"] if unlocked else mats["locked"], root)
 
 	# Un seul MultiMesh par champ : des milliers d'epis en un appel de dessin
 	var mm: MultiMesh = null
@@ -248,7 +241,7 @@ func _build_field(def: Dictionary) -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		root.add_child(mmi)
-	var label := _label3d("", Vector3(0, 2.2, -h * 0.5 * TILE_STEP), root)
+	var label := _label3d("", Vector3(0, 2.2, -h * 0.5 * tile_step), root)
 	field_nodes[id] = {"root": root, "mm": mm, "cache": [], "label": label, "w": w, "h": h}
 
 
@@ -349,6 +342,40 @@ func _on_field_completed(id: String, bonus: float) -> void:
 	tw.chain().tween_callback(l.queue_free)
 
 
+# ---------- Drones (affichage seulement : la logique est dans Game._tick_drones) ----------
+func _update_drones(delta: float) -> void:
+	var drones: Array = game.state["drones"]
+	while drone_nodes.size() < drones.size():
+		var n := Node3D.new()
+		_box(Vector3(0.9, 0.25, 0.9), Vector3.ZERO, mats["drone"], n)
+		_box(Vector3(1.6, 0.06, 0.12), Vector3(0, 0.2, 0), mats["pillar"], n)   # rotors
+		_box(Vector3(0.12, 0.06, 1.6), Vector3(0, 0.2, 0), mats["pillar"], n)
+		n.position = Vector3(0, 4.5, 0)
+		add_child(n)
+		drone_nodes.append(n)
+	for i in drones.size():
+		var d: Dictionary = drones[i]
+		var node: Node3D = drone_nodes[i]
+		var hub := Vector3(-2.0 + (i % 5), 4.5, 2.0 - floori(i / 5.0))   # stationnement au-dessus du hangar
+		var target := hub
+		if d["phase"] != "idle":
+			var field_pos: Vector3 = field_origins[d["field"]] + Vector3(0, 3.0, 0)
+			var k: float = 1.0 - (d["t"] / d["dur"] if d["dur"] > 0.0 else 0.0)
+			match d["phase"]:
+				"aller":
+					target = hub.lerp(field_pos, k)
+				"retour":
+					target = field_pos.lerp(hub, k)
+				"recolte":
+					if d["tile"] >= 0:
+						var fn: Dictionary = field_nodes[d["field"]]
+						target = field_origins[d["field"]] + _tile_local(d["tile"], fn["w"], fn["h"]) + Vector3(0, 1.4, 0)
+					else:
+						target = field_pos
+		node.position = node.position.lerp(target, 1.0 - exp(-12.0 * delta))
+		node.rotate_y(delta * 2.0)
+
+
 func _on_equipment_bought(_id: String) -> void:
 	_build_player_model()
 	_show_message("Nouvel équipement : %s !" % game.current_equipment()["name"])
@@ -408,6 +435,23 @@ func _build_hud() -> void:
 		b.pressed.connect(game.buy_upgrade.bind(def["id"]))
 		box.add_child(b)
 		hud["upgrade_buttons"][def["id"]] = b
+	_label(box, 18).text = "Drones (- / + par champ, les autres vont au plus mûr)"
+	hud["drone_label"] = _label(box, 14)
+	hud["drone_rows"] = {}
+	for def in game.data["fields"]:
+		var row := HBoxContainer.new()
+		var l := _label(row, 14)
+		l.custom_minimum_size.x = 220
+		var minus := Button.new()
+		minus.text = " - "
+		minus.pressed.connect(game.assign_drone.bind(def["id"], -1))
+		var plus := Button.new()
+		plus.text = " + "
+		plus.pressed.connect(game.assign_drone.bind(def["id"], 1))
+		row.add_child(minus)
+		row.add_child(plus)
+		box.add_child(row)
+		hud["drone_rows"][def["id"]] = {"row": row, "label": l, "minus": minus, "plus": plus}
 	_label(box, 18).text = "Champs"
 	hud["field_buttons"] = {}
 	for def in game.data["fields"]:
@@ -433,8 +477,8 @@ func _update_hud(delta: float) -> void:
 	hud["sack"].text = "Sac : %s / %s" % [_fmt(game.sack_count()), _fmt(st["sackCapacity"])]
 	hud["sack_bar"].max_value = st["sackCapacity"]
 	hud["sack_bar"].value = game.sack_count()
-	hud["stats"].text = "Épis récoltés : %s   Champs finis : %d   Auto : %s épi/s" % [
-		_fmt(game.state["totals"]["tilesHarvested"]), game.state["totals"]["fieldsCompleted"], str(st["autoHarvestRate"])]
+	hud["stats"].text = "Épis récoltés : %s   Champs finis : %d   Drones : %d" % [
+		_fmt(game.state["totals"]["tilesHarvested"]), game.state["totals"]["fieldsCompleted"], game.drone_count()]
 
 	if hud["panel"].visible:
 		var cur := game.current_equipment()
@@ -454,6 +498,16 @@ func _update_hud(delta: float) -> void:
 			var cost := "MAX" if game.is_upgrade_maxed(id) else _fmt(game.get_upgrade_cost(id))
 			b.text = "%s (niv. %d) : %s   [%s]" % [def["name"], game.upgrade_level(id), def["desc"], cost]
 			b.disabled = not game.can_buy_upgrade(id)
+		var n := game.drone_count()
+		var free := n - game.total_assigned()
+		hud["drone_label"].text = "%d drone(s) : %d assigné(s), %d au plus mûr" % [n, n - free, free]
+		for def in game.data["fields"]:
+			var id: String = def["id"]
+			var r: Dictionary = hud["drone_rows"][id]
+			r["row"].visible = n > 0 and game.state["fields"][id]["unlocked"]
+			r["label"].text = "%s : %d" % [def["name"], game.assigned_count(id)]
+			r["minus"].disabled = game.assigned_count(id) == 0
+			r["plus"].disabled = free <= 0
 		for def in game.data["fields"]:
 			var id: String = def["id"]
 			var b: Button = hud["field_buttons"][id]

@@ -18,6 +18,9 @@ func _process(_delta: float) -> bool:
 	frames += 1
 	if frames < 5:
 		return false
+	if main.get("game") == null:
+		print("FAIL la scene n'a pas demarre (erreur de script ?)")
+		return true
 	var g: Game = main.game
 	match step:
 		0:
@@ -54,5 +57,17 @@ func _process(_delta: float) -> bool:
 			# disque de rayon r : environ pi*r^2 epis (x rendement par epi)
 			var expected := PI * r * r * 0.6 * float(g.stats["yieldPerTile"])
 			print(("OK   " if got >= expected else "FAIL ") + "recolte en vehicule, rayon %s m : %d epis (attendu >= %d)" % [r, got, expected])
+			g.buy_upgrade("drone")
+			main.player.position = Vector3(0, 0, 30)   # loin du hangar pour ne rien vendre soi-meme
+			step = 5
+			frames = 0
+		5:
+			if frames < 90:
+				return false
+			var ok_node: bool = main.drone_nodes.size() == g.drone_count() and g.drone_count() >= 1
+			print(("OK   " if ok_node else "FAIL ") + "drone affiche (%d)" % main.drone_nodes.size())
+			var d: Dictionary = g.state["drones"][0]
+			var moved: float = (main.drone_nodes[0].position - Vector3(-2, 4.5, 2)).length()
+			print(("OK   " if d["phase"] != "idle" and moved > 1.0 else "FAIL ") + "le drone a decolle : phase %s, %.1f m du hangar" % [d["phase"], moved])
 			return true
 	return false

@@ -8,6 +8,15 @@
     "yieldPerTile": 1,
     "sackCapacity": 30,
     "growTimeMult": 1,
-    "autoHarvestRate": 0
+    "autoHarvestRate": 0,
+    "droneCount": 0,
+    "droneSpeed": 8,
+    "droneCargo": 20,
+    "droneHarvestRate": 3
+  },
+  "world": {
+    "tileStep": 1,
+    "hubHalf": 4,
+    "fieldGap": 4
   }
 }

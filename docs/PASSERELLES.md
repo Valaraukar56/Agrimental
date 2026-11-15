@@ -8,6 +8,10 @@
 > - Données : `data/equipment.json` (paliers : `cost`, `model` = `pied`/`vehicule`, `set` remplace des stats, `add` s'y ajoute). Stats : base, puis `set`, puis `add`, puis améliorations.
 > - État : `equipment` (id du palier possédé).
 > - API : `equipment_index()`, `current_equipment()`, `next_equipment()`, `can_buy_next_equipment()`, `buy_next_equipment()`. Signal : `equipment_bought(id)`.
+> - Drones : `data/drones.json` (améliorations ajoutées à la liste au chargement), stats `droneCount`, `droneSpeed`, `droneCargo`, `droneHarvestRate` dans `balance.baseStats`. L'ouvrier (`farmhand`, marqué `webOnly`) est ignoré par Godot ; une sauvegarde avec N ouvriers reçoit N drones.
+> - État : `drones` (un dictionnaire par drone : `phase` idle/aller/recolte/retour, `field`, `t`, `dur`, `cargo`, `tile`) et `droneAssign` (`{ field_id: nombre }`).
+> - API drones : `drone_count()`, `assigned_count(field)`, `total_assigned()`, `assign_drone(field, +1/-1)`, `field_distance(field)`. Signal : `drone_delivered(index, value)`. Source de récolte `"drone"` dans `harvest_tile`.
+> - Disposition : `godot/core/layout.gd` (`Layout.compute(data)`, lit `balance.world`) sert à la fois au placement 3D et à la distance de vol des drones.
 
 Règle : **données → logique → affichage**, jamais l'inverse.
 - `data/*.json` ne contient que des chiffres et des textes.

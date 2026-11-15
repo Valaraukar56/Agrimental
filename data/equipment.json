@@ -21,7 +21,7 @@
     "id": "debroussailleuse",
     "name": "Débroussailleuse",
     "desc": "Coupe large, on avance plus vite",
-    "cost": 65000,
+    "cost": 30000,
     "model": "pied",
     "set": { "harvestRadius": 2.2, "moveSpeed": 7 },
     "add": {}
@@ -30,7 +30,7 @@
     "id": "moissonneuse",
     "name": "Moissonneuse",
     "desc": "Véhicule : coupe énorme, rapide, grosse trémie",
-    "cost": 300000,
+    "cost": 135000,
     "model": "vehicule",
     "set": { "harvestRadius": 3.2, "moveSpeed": 10 },
     "add": { "sackCapacity": 1500 }

@@ -49,6 +49,7 @@
     "value": 1,
     "baseCost": 4000,
     "costGrowth": 1.12,
-    "maxLevel": null
+    "maxLevel": null,
+    "webOnly": true
   }
 ]

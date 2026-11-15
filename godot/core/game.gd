@@ -11,15 +11,20 @@ signal sold(value: float)
 signal upgrade_bought(id: String, level: int)
 signal field_unlocked(id: String)
 signal equipment_bought(id: String)
+signal drone_delivered(index: int, value: float)
 
 var data: Dictionary
 var state: Dictionary
 var stats: Dictionary
-var _auto_acc := 0.0
+var layout: Dictionary         # Layout.compute(data) : positions des champs
+var _field_distance := {}      # field_id -> distance hangar -> centre du champ (m)
 
 
 func _init(p_data: Dictionary, saved: Variant = null) -> void:
 	data = p_data
+	layout = Layout.compute(data)
+	for id in layout["origins"]:
+		_field_distance[id] = (layout["origins"][id] as Vector3).length()
 	state = GameState.migrate(saved, data) if saved is Dictionary else GameState.create(data)
 	recompute()
 
@@ -27,6 +32,7 @@ func _init(p_data: Dictionary, saved: Variant = null) -> void:
 # ---------- Lecture ----------
 func recompute() -> void:
 	stats = Formulas.compute_stats(data, state)
+	_sync_drones()
 
 
 func field_def(id: String) -> Dictionary:
@@ -115,7 +121,7 @@ func add_money(n: float) -> void:
 	state["totals"]["earned"] += n
 
 
-## source : "player" (va dans le sac) ou "auto" (vendu directement)
+## source : "player" (va dans le sac), "drone" (va dans sa soute) ou "auto" (vendu directement)
 func harvest_tile(field_id: String, idx: int, source := "player") -> bool:
 	var f: Dictionary = state["fields"].get(field_id, {})
 	if f.is_empty() or not f["unlocked"] or idx < 0 or idx >= f["tiles"].size() or f["tiles"][idx] != 1:
@@ -130,8 +136,9 @@ func harvest_tile(field_id: String, idx: int, source := "player") -> bool:
 			sack_full.emit()
 			return false
 		state["sack"][crop] = float(state["sack"].get(crop, 0.0)) + minf(amount, free)
-	else:
+	elif source == "auto":
 		add_money(amount * float(data["crops"][crop]["sellPrice"]))
+	# source "drone" : la cargaison est geree par le drone (_tick_drones)
 
 	f["tiles"][idx] = 0
 	f["regrow"][idx] = Formulas.grow_time(data, stats, crop)
@@ -216,33 +223,145 @@ func tick(delta: float) -> void:
 				tiles[i] = 1
 				tile_regrown.emit(def["id"], i)
 
-	# Automatisation : ouvriers
-	_auto_acc += float(stats["autoHarvestRate"]) * delta
-	while _auto_acc >= 1.0:
-		var target := pick_auto_target()
-		if target.is_empty():
-			_auto_acc = 0.0
-			break
-		harvest_tile(target["fieldId"], target["idx"], "auto")
-		_auto_acc -= 1.0
+	_tick_drones(delta)
 
 
-## Epi mur aleatoire dans un champ debloque
-func pick_auto_target() -> Dictionary:
-	var candidates: Array = []
+# ---------- Drones ----------
+# Cycle d'un drone : idle (au hangar) -> aller -> recolte -> retour -> vente -> idle.
+# Tout est en minuteurs : la scene ne fait qu'afficher (voir drone_world_position cote scene).
+
+func _new_drone() -> Dictionary:
+	return {"phase": "idle", "field": "", "t": 0.0, "dur": 0.0, "cargo": 0.0, "tile": -1}
+
+
+func _sync_drones() -> void:
+	var drones: Array = state["drones"]
+	var n := drone_count()
+	while drones.size() < n:
+		drones.append(_new_drone())
+	if drones.size() > n:
+		drones.resize(n)
+	# Une sauvegarde peut assigner plus de drones qu'on n'en a : on tronque
+	var excess := total_assigned() - n
 	for def in data["fields"]:
-		var f: Dictionary = state["fields"][def["id"]]
-		if f["unlocked"] and f["tiles"].has(1):
-			candidates.append(def["id"])
-	if candidates.is_empty():
-		return {}
-	var id: String = candidates.pick_random()
+		if excess <= 0:
+			break
+		var id: String = def["id"]
+		var take := mini(excess, assigned_count(id))
+		if take > 0:
+			state["droneAssign"][id] = assigned_count(id) - take
+			excess -= take
+
+
+func drone_count() -> int:
+	return int(stats.get("droneCount", 0))
+
+
+func assigned_count(field_id: String) -> int:
+	return int(state["droneAssign"].get(field_id, 0))
+
+
+func total_assigned() -> int:
+	var total := 0
+	for id in state["droneAssign"]:
+		total += int(state["droneAssign"][id])
+	return total
+
+
+## delta = +1 ou -1. Les drones non assignes vont au champ le plus mur.
+func assign_drone(field_id: String, delta: int) -> bool:
+	if delta > 0:
+		if total_assigned() >= drone_count() or not state["fields"][field_id]["unlocked"]:
+			return false
+	elif assigned_count(field_id) <= 0:
+		return false
+	state["droneAssign"][field_id] = assigned_count(field_id) + delta
+	return true
+
+
+func field_distance(field_id: String) -> float:
+	return float(_field_distance[field_id])
+
+
+## Champ vise par le drone i au decollage : les assignations remplissent les premiers drones
+## (dans l'ordre des champs), les suivants vont au champ debloque le plus mur.
+func _drone_target(i: int) -> String:
+	var k := 0
+	for def in data["fields"]:
+		var n := assigned_count(def["id"])
+		if i < k + n:
+			return def["id"] if ripe_count(def["id"]) > 0 else ""
+		k += n
+	var best := ""
+	var best_ripe := 0
+	for def in data["fields"]:
+		if state["fields"][def["id"]]["unlocked"]:
+			var r := ripe_count(def["id"])
+			if r > best_ripe:
+				best = def["id"]
+				best_ripe = r
+	return best
+
+
+func _random_ripe(field_id: String) -> int:
+	var tiles: Array = state["fields"][field_id]["tiles"]
 	var ripe: Array = []
-	var tiles: Array = state["fields"][id]["tiles"]
 	for i in tiles.size():
 		if tiles[i] == 1:
 			ripe.append(i)
-	return {"fieldId": id, "idx": ripe.pick_random()}
+	return -1 if ripe.is_empty() else ripe.pick_random()
+
+
+func _drone_fly(d: Dictionary, phase: String) -> void:
+	d["phase"] = phase
+	d["dur"] = field_distance(d["field"]) / maxf(0.1, float(stats["droneSpeed"]))
+	d["t"] = d["dur"]
+
+
+func _tick_drones(delta: float) -> void:
+	var drones: Array = state["drones"]
+	var cut_time := 1.0 / maxf(0.01, float(stats["droneHarvestRate"]))
+	var cap := float(stats["droneCargo"])
+	for i in drones.size():
+		var d: Dictionary = drones[i]
+		var left := delta
+		var guard := 0
+		while left > 0.0 and guard < 10000:
+			guard += 1
+			if d["phase"] == "idle":
+				var target := _drone_target(i)
+				if target == "":
+					break   # rien a recolter : il attend au hangar
+				d["field"] = target
+				_drone_fly(d, "aller")
+				continue
+			var step := minf(left, d["t"])
+			d["t"] -= step
+			left -= step
+			if d["t"] > 0.0:
+				continue
+			match d["phase"]:
+				"aller":
+					d["phase"] = "recolte"
+					d["t"] = cut_time
+				"recolte":
+					var idx := _random_ripe(d["field"])
+					if idx >= 0 and d["cargo"] < cap:
+						harvest_tile(d["field"], idx, "drone")
+						d["cargo"] = minf(cap, d["cargo"] + float(stats["yieldPerTile"]))
+						d["tile"] = idx
+						d["t"] = cut_time
+					if idx < 0 or d["cargo"] >= cap:
+						_drone_fly(d, "retour")
+				"retour":
+					var price := float(data["crops"][field_def(d["field"])["crop"]]["sellPrice"])
+					var value: float = d["cargo"] * price
+					add_money(value)
+					d["cargo"] = 0.0
+					d["tile"] = -1
+					d["phase"] = "idle"
+					if value > 0.0:
+						drone_delivered.emit(i, value)
 
 
 func serialize() -> Dictionary:
